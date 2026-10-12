@@ -1,0 +1,37 @@
+name: Démonstration privée MIMMO
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_free_plan:
+        description: Mon compte Cloudflare est en Workers Free, sans option payante
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: mimmo-private-demo
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_free_plan == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run demo:check
+      - name: Déployer et vérifier le refus des visiteurs anonymes
+        run: npm run demo:deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CONFIRM_FREE_PLAN: ${{ inputs.confirm_free_plan }}
+          WRANGLER_SEND_METRICS: "false"

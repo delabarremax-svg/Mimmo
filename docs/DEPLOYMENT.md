@@ -1,5 +1,7 @@
 # Prévisualisation et déploiement
 
+La mission 2 fournit une voie concrète : [démonstration Cloudflare HTTPS privée, depuis Safari iPhone](DEMO-IPHONE.md). Configuration dans `deploy/wrangler.json`, protection serveur dans `deploy/worker.ts`, lancement manuel dans `.github/workflows/private-demo.yml`. Aucun déploiement automatique au push et aucune publication anonyme. Les instructions ci-dessous décrivent aussi la prévisualisation locale initiale.
+
 ## Première prévisualisation depuis un iPhone
 
 Le parcours peut être servi localement avec `npm run dev` (port 5173) et accessible via l’adresse LAN d’un ordinateur sur le même Wi-Fi. Depuis un iPhone seul : préparer une instance de prévisualisation HTTPS privée avec un hébergeur choisi par le fondateur ; envoyer ensuite le lien réel. Ne pas présenter une URL GitHub ni localhost comme lien vers l’application.
