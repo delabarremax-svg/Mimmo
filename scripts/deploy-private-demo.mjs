@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
 import { readFile, appendFile } from "node:fs/promises";
+const preview = process.argv.includes("--ux-preview");
+const config = preview ? "deploy/wrangler-ux.json" : "deploy/wrangler.json";
+const workerName = preview ? "mimmo-demo-ux" : "mimmo-demo-privee";
 const password = process.env.DEMO_PASSWORD;
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 if (
@@ -43,16 +46,16 @@ async function wrangler(args, stdin) {
   });
 }
 // Missing secrets close access (503); there is no public interval during first deployment.
-const output = await wrangler(["deploy", "--config", "deploy/wrangler.json"]);
+const output = await wrangler(["deploy", "--config", config]);
 const url = output.match(
-  /https:\/\/mimmo-demo-privee\.[a-z0-9-]+\.workers\.dev\b/i,
+  new RegExp("https://" + workerName + "\\.[a-z0-9-]+\\.workers\\.dev\\b", "i"),
 )?.[0];
 if (!url)
   throw new Error(
-    "Adresse Cloudflare non détectée. Consulter le Worker mimmo-demo-privee dans le tableau de bord, sans ouvrir ses paramètres au public.",
+    "Adresse Cloudflare non détectée. Consulter le Worker dans le tableau de bord, sans ouvrir ses paramètres au public.",
   );
 await wrangler(
-  ["secret", "bulk", "--config", "deploy/wrangler.json"],
+  ["secret", "bulk", "--config", config],
   JSON.stringify({ DEMO_PASSWORD: password }),
 );
 const html = await readFile("dist/index.html", "utf8");
@@ -65,13 +68,17 @@ const files = [
 ];
 async function verify() {
   for (const path of files) {
-    const anonymous = await fetch(`${url}${path}`, { redirect: "manual" });
+    const anonymous = await fetch(`${url}${path}`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+    });
     if (anonymous.status !== 401)
       throw new Error(
         "La vérification de protection anonyme a échoué. Aucun lien validé.",
       );
     const authorized = await fetch(`${url}${path}`, {
       redirect: "manual",
+      signal: AbortSignal.timeout(15000),
       headers: {
         Authorization: `Basic ${Buffer.from(`mimmo:${password}`).toString("base64")}`,
       },

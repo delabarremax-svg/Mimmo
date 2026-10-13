@@ -12,6 +12,10 @@ Accueil, Mes biens, saisie d’une URL, fiche éditable avec provenance par info
 
 La mission 2 prépare un déploiement HTTPS Cloudflare Workers Free, protégé côté serveur par mot de passe. Aucun hébergement n’est activé automatiquement. [Guide sans terminal pour iPhone](docs/DEMO-IPHONE.md) : compte gratuit, trois secrets GitHub, puis bouton manuel dans Actions. L’accès privé ne remplace pas les futurs comptes SaaS. Les saisies disparaissent au rechargement.
 
+## Parcours guidé et proposition de comptes privés
+
+[Présentation de l’aperçu UX](docs/UX-PREVIEW.md) : photos locales temporaires, tableau de bord fondé sur les saisies, étapes guidées, brouillons, recherche et filtres. Aucun résultat d’analyse ni pourcentage fictif. [Prochaine étape : comptes et sauvegarde privée](docs/NEXT-AUTH-PRIVATE-PROJECTS.md). Le Worker d’aperçu UX est distinct de la démonstration initiale ; la PR reste à valider avant fusion.
+
 ## Démarrer
 
 Node.js 22.12+ ou 24 LTS et npm.

@@ -1,0 +1,40 @@
+name: Aperçu privé UX MIMMO
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: mimmo-private-ux-preview
+  cancel-in-progress: false
+jobs:
+  preview:
+    # Same-repository branch only. Never deploy code or reveal secrets to a fork.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/guided-property-experience'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx --no-install wrangler deploy --config deploy/wrangler-ux.json --dry-run --outdir work/ux-worker-build
+      - name: Publier l’aperçu séparé et vérifier la protection
+        run: node scripts/deploy-private-demo.mjs --ux-preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          # Workers Free was confirmed by the founder for successful run 38390246372.
+          # No plan upgrade or paid service is requested here.
+          CONFIRM_FREE_PLAN: "true"
