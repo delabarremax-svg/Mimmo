@@ -831,3 +831,12 @@ label {
     text-align: center;
   }
 }
+
+/* Safari iOS zooms automatically on focused inputs smaller than 16 px. */
+@media (max-width: 640px) {
+  .url-input input,
+  .fact-editor input,
+  .fact-editor select {
+    font-size: 16px;
+  }
+}

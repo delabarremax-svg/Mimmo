@@ -8,6 +8,10 @@ Accueil, Mes biens, saisie d’une URL, fiche éditable avec provenance par info
 
 **Aperçu en mémoire uniquement** : pas de compte, pas de sauvegarde privée ; recharger efface les saisies. Aucun document à téléverser, aucune IA ni simulation financière active.
 
+## Démonstration privée depuis un iPhone
+
+La mission 2 prépare un déploiement HTTPS Cloudflare Workers Free, protégé côté serveur par mot de passe. Aucun hébergement n’est activé automatiquement. [Guide sans terminal pour iPhone](docs/DEMO-IPHONE.md) : compte gratuit, trois secrets GitHub, puis bouton manuel dans Actions. L’accès privé ne remplace pas les futurs comptes SaaS. Les saisies disparaissent au rechargement.
+
 ## Démarrer
 
 Node.js 22.12+ ou 24 LTS et npm.
