@@ -23,6 +23,7 @@ export type Fact = {
   updatedAt: string;
 };
 export type Property = {
+  version?: number;
   id: string;
   url: string;
   createdAt: string;

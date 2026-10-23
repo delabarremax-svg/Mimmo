@@ -16,6 +16,10 @@ La mission 2 prépare un déploiement HTTPS Cloudflare Workers Free, protégé c
 
 [Présentation de l’aperçu UX](docs/UX-PREVIEW.md) : photos locales temporaires, tableau de bord fondé sur les saisies, étapes guidées, brouillons, recherche et filtres. Aucun résultat d’analyse ni pourcentage fictif. [Prochaine étape : comptes et sauvegarde privée](docs/NEXT-AUTH-PRIVATE-PROJECTS.md). Le Worker d’aperçu UX est distinct de la démonstration initiale ; la PR reste à valider avant fusion.
 
+## Mission 4 — comptes et sauvegarde privée
+
+Intégration Supabase Auth/API Worker/PostgreSQL préparée sur la base du parcours PR 3. [Activation et test iPhone](docs/MISSION-4.md). Le mode démo reste inchangé ; `npm run build:accounts` active les comptes sur un Worker distinct. Projet Supabase à configurer avant utilisation réelle. Photos encore temporaires.
+
 ## Démarrer
 
 Node.js 22.12+ ou 24 LTS et npm.

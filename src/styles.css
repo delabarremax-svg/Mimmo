@@ -1923,3 +1923,15 @@ h1:focus {
 .detail h1 {
   overflow-wrap: anywhere;
 }
+/* Account fields retain the iPhone 16px input baseline. */
+.narrow .panel > input { display: block; width: 100%; box-sizing: border-box; min-height: 48px; font-size: 16px; border: 1px solid #d7ddd7; border-radius: 12px; padding: 12px; margin: 8px 0 20px; }
+button:disabled { opacity: .6; cursor: wait; }
+.save-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.accounts-header { flex-wrap: wrap; height: auto; min-height: 88px; padding-top: 12px; padding-bottom: 12px; gap: 8px 16px; }
+.accounts-header > .back { flex-basis: 100%; min-height: 44px; margin: 0; justify-content: flex-end; }
+.session-note > span { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 640px) {
+  .accounts-header { gap: 8px; }
+  .accounts-header .brand { font-size: 23px; }
+  .accounts-header nav { gap: 14px; }
+}

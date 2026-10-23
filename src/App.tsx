@@ -1,3 +1,5 @@
+import Account from "./components/Account";
+import { accountsEnabled, api, persist } from "./services/account";
 import { useEffect, useRef, useState } from "react";
 import {
   House,
@@ -14,6 +16,30 @@ import PropertyDetail from "./components/PropertyDetail";
 import Modal from "./components/Modal";
 type Page = "home" | "list" | "import" | "detail";
 export default function App() {
+  const [user, setUser] = useState<string>();
+  const [loading, setLoading] = useState(accountsEnabled);
+  const [busy, setBusy] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  useEffect(() => {
+    if (!accountsEnabled) return;
+    api<{user: {email: string}}>("session").then(async ({user}) => {
+      const result = await api<{properties: Property[]}>("properties");
+      setProperties(result.properties); setUser(user.email);
+    }).catch(() => setUser(undefined)).finally(() => setLoading(false));
+  }, []);
+  async function connected(email: string) {
+    const result = await api<{properties: Property[]}>("properties");
+    setProperties(result.properties); setUser(email); setPage("list");
+  }
+  async function saveProperty(updated: Property) {
+    setBusy(true); setSyncMessage("Enregistrement en cours…");
+    try {
+      const saved = accountsEnabled ? await persist(updated) : updated;
+      setProperties(prev => prev.map(p => p.id === saved.id ? saved : p));
+      setSyncMessage("");
+    } catch (error) { setSyncMessage("Échec de l’enregistrement. Brouillon conservé."); throw error; }
+    finally { setBusy(false); }
+  }
   const [page, setPage] = useState<Page>("home");
   const [properties, setProperties] = useState<Property[]>([]);
   const [active, setActive] = useState<string>();
@@ -25,7 +51,7 @@ export default function App() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [pending, setPending] = useState<{ run: () => void }>();
+  const [pending, setPending] = useState<{ run: () => void; deleting?: boolean }>();
   const property = properties.find((p) => p.id === active);
   useEffect(
     () => () => {
@@ -35,14 +61,14 @@ export default function App() {
   );
   useEffect(() => {
     function warn(event: BeforeUnloadEvent) {
-      if (properties.length || dirty) {
+      if ((!accountsEnabled && properties.length) || dirty || busy) {
         event.preventDefault();
         event.returnValue = "";
       }
     }
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [properties.length, dirty]);
+  }, [properties.length, dirty, busy]);
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
     const title = document.querySelector("main h1") as HTMLElement | null;
@@ -50,6 +76,7 @@ export default function App() {
     title?.focus({ preventScroll: true });
   }, [page, active]);
   function perform(run: () => void) {
+    if (busy) return;
     if (dirty) setPending({ run });
     else run();
   }
@@ -66,19 +93,21 @@ export default function App() {
       setPage("detail");
     });
   }
-  function add(event: React.FormEvent) {
+  async function add(event: React.FormEvent) {
     event.preventDefault();
     try {
-      const p = createProperty(url);
+      setBusy(true);
+      const draft = createProperty(url);
+      const p = accountsEnabled ? await persist(draft) : draft;
       setProperties((prev) => [p, ...prev]);
       setActive(p.id);
       setInitialMode("edit");
       setUrl("");
       setPage("detail");
       setError("");
-    } catch {
-      setError("Saisissez une URL http ou https valide, sans identifiants.");
-    }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Impossible de créer le bien.");
+    } finally { setBusy(false); }
   }
   function photo(p?: Photo) {
     if (!active) return;
@@ -97,7 +126,7 @@ export default function App() {
   }
   return (
     <div className="app">
-      <header>
+      <header className={accountsEnabled ? "accounts-header" : undefined}>
         <a
           className="brand"
           href="#"
@@ -127,17 +156,21 @@ export default function App() {
             Mes biens <span className="count">{properties.length}</span>
           </button>
         </nav>
-        <span className="preview-label">APERÇU DU PARCOURS</span>
+        {accountsEnabled ? user && <button className="back" onClick={() => perform(async () => {
+          setBusy(true);
+          try { await api("logout", "POST", {}); setProperties([]); setUser(undefined); setActive(undefined); setPhotos({}); photoUrls.current.forEach(URL.revokeObjectURL); photoUrls.current.clear(); setDirty(false); setSyncMessage(""); setPage("home"); }
+          catch { setSyncMessage("Déconnexion impossible. Réessayez."); } finally { setBusy(false); }
+        })}>Se déconnecter</button> : <span className="preview-label">APERÇU DU PARCOURS</span>}
       </header>
       <div className="session-note">
         <Info size={15} />
         <span>
-          Mode aperçu · Pas encore de compte MIMMO ni de sauvegarde privée. Vos
-          saisies et photos restent en mémoire et disparaissent au rechargement.
+          {accountsEnabled ? user ? `Espace privé · ${user} · Photos temporaires, non sauvegardées.` : "Vos biens sauvegardés dans votre espace privé." : "Mode aperçu · Pas encore de compte MIMMO ni de sauvegarde privée. Vos saisies et photos restent en mémoire et disparaissent au rechargement."}
         </span>
       </div>
       <main>
-        <div className="page-content" key={page}>
+        {syncMessage && <p role="status" className="session-note">{syncMessage}</p>}
+        {loading ? <section className="narrow" role="status">Ouverture de votre espace…</section> : accountsEnabled && !user ? <Account onConnected={connected}/> : <div className="page-content" key={page}>
           {page === "home" ? (
             <Home navigate={navigate} hasProjects={properties.length > 0} />
           ) : page === "list" ? (
@@ -188,7 +221,7 @@ export default function App() {
                     {error}
                   </p>
                 )}
-                <button className="primary" type="submit">
+                <button className="primary" type="submit" disabled={busy}>
                   Créer la fiche à compléter <ArrowUpRight size={18} />
                 </button>
               </form>
@@ -205,16 +238,19 @@ export default function App() {
               photo={photos[property.id]}
               onPhoto={photo}
               initialMode={initialMode}
-              onSave={(updated) =>
-                setProperties((prev) =>
-                  prev.map((p) => (p.id === updated.id ? updated : p)),
-                )
-              }
+              onSave={saveProperty}
               onBack={() => navigate("list")}
               onDirty={setDirty}
             />
           ) : null}
-        </div>
+        </div>}
+        {page === "detail" && property && <button className="back" disabled={busy} onClick={() => {
+          setPending({deleting: true, run: async () => {
+            setBusy(true);
+            try { if (accountsEnabled) await api(`properties/${property.id}`, "DELETE", {}); setProperties(prev => prev.filter(p => p.id !== property.id)); photo(); setDirty(false); setPage("list"); setSyncMessage("Bien supprimé."); }
+            catch { setSyncMessage("Suppression impossible. Réessayez."); } finally { setBusy(false); }
+          }});
+        }}>Supprimer ce bien</button>}
       </main>
       <footer>
         <span className="brand">mimmo.</span>
@@ -223,14 +259,12 @@ export default function App() {
       </footer>
       {pending && (
         <Modal
-          title="Modifications non enregistrées"
+          title={pending.deleting ? "Supprimer ce bien" : "Modifications non enregistrées"}
           onClose={() => setPending(undefined)}
         >
-          <h2>Gardez vos dernières modifications.</h2>
+          <h2>{pending.deleting ? "Supprimer définitivement ce bien ?" : "Gardez vos dernières modifications."}</h2>
           <p>
-            Vous avez des saisies en brouillon sur cette fiche. Quitter
-            abandonnera ces modifications ; les informations déjà enregistrées
-            resteront dans cette session.
+            {pending.deleting ? "Cette suppression est définitive. Le bien et ses informations seront retirés de votre espace." : "Quitter abandonnera les modifications non enregistrées. Les informations déjà enregistrées resteront disponibles."}
           </p>
           <div className="modal-actions">
             <button
@@ -238,7 +272,7 @@ export default function App() {
               autoFocus
               onClick={() => setPending(undefined)}
             >
-              Continuer la saisie
+              {pending.deleting ? "Annuler" : "Continuer la saisie"}
             </button>
             <button
               className="secondary"
@@ -249,7 +283,7 @@ export default function App() {
                 run();
               }}
             >
-              Quitter sans enregistrer
+              {pending.deleting ? "Supprimer définitivement" : "Quitter sans enregistrer"}
             </button>
           </div>
         </Modal>
