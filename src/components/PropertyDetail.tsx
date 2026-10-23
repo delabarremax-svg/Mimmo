@@ -1,3 +1,4 @@
+import { accountsEnabled } from "../services/account";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -57,7 +58,7 @@ export default function PropertyDetail({
   property: Property;
   photo?: Photo;
   initialMode: "overview" | "edit";
-  onSave: (p: Property) => void;
+  onSave: (p: Property) => void | Promise<void>;
   onPhoto: (p?: Photo) => void;
   onBack: () => void;
   onDirty: (dirty: boolean) => void;
@@ -66,6 +67,7 @@ export default function PropertyDetail({
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState(() => structuredClone(property.facts));
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const summary = projectSummary(property);
   const dirty = (Object.keys(fields) as FieldKey[]).some(
@@ -85,7 +87,7 @@ export default function PropertyDetail({
     setMessage("");
     setError("");
   }
-  function save(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault();
     const next = { ...property.facts };
     const nextDraft = { ...draft };
@@ -102,10 +104,15 @@ export default function PropertyDetail({
         return;
       }
     }
-    onSave({ ...property, facts: next });
+    if (saving) return;
+    setSaving(true);
+    setMessage("Enregistrement en cours…");
+    try { await onSave({ ...property, facts: next }); }
+    catch (e) { setMessage(""); setError(e instanceof Error ? e.message : "Échec. Réessayez."); return; }
+    finally { setSaving(false); }
     setDraft(nextDraft);
     setError("");
-    setMessage("Modifications enregistrées pour cette session.");
+    setMessage(accountsEnabled ? "Modifications enregistrées sur votre compte." : "Modifications enregistrées pour cette session.");
   }
   function move(next: number) {
     setStep(next);
@@ -286,7 +293,7 @@ export default function PropertyDetail({
                 </button>
               </div>
               <p className="subtle">
-                Cette vue reflète vos saisies enregistrées pour la session.
+                Cette vue reflète vos informations enregistrées.
               </p>
               <div className="known-facts">
                 {(Object.keys(fields) as FieldKey[]).map((key) => (
@@ -370,7 +377,7 @@ export default function PropertyDetail({
               </button>
             ))}
           </div>
-          <form onSubmit={save}>
+          <form onSubmit={save}><fieldset className="save-fields" disabled={saving}>
             <div className="step-description">
               <h3>{groups[step][0]}</h3>
               <p>{groups[step][1]}</p>
@@ -403,7 +410,7 @@ export default function PropertyDetail({
                   ? "Modifications à enregistrer"
                   : "Vos données restent temporaires"}
               </span>
-              <button className="primary" type="submit">
+              <button className="primary" type="submit" disabled={saving}>
                 Enregistrer les modifications <Check size={18} />
               </button>
             </div>
@@ -443,7 +450,7 @@ export default function PropertyDetail({
               modifications restent en brouillon tant que vous êtes sur cette
               fiche.
             </p>
-          </form>
+          </fieldset></form>
           <details className="legend-details">
             <summary>Comment lire la provenance des informations ?</summary>
             <ProvenanceLegend />

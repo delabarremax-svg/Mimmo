@@ -10,18 +10,22 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "demo:check": "wrangler deploy --config deploy/wrangler.json --dry-run --outdir work/worker-build",
-    "demo:deploy": "node scripts/deploy-private-demo.mjs"
+    "demo:deploy": "node scripts/deploy-private-demo.mjs",
+    "build:accounts": "tsc -b && vite build --mode accounts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@testing-library/jest-dom": "^6.9.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
