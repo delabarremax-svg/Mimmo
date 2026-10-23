@@ -126,7 +126,7 @@ export default function App() {
   }
   return (
     <div className="app">
-      <header>
+      <header className={accountsEnabled ? "accounts-header" : undefined}>
         <a
           className="brand"
           href="#"
