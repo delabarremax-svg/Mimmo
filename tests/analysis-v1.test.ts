@@ -43,31 +43,33 @@ it("returns only structured hypotheses grounded in exact source quotes", async (
     status: "estimated",
     findings: output.findings,
   });
-  expect(run.mock.calls[0][0]).toBe("@cf/meta/llama-3.1-8b-instruct-fp8-fast");
+  expect(run.mock.calls[0][0]).toBe("@cf/meta/llama-3.1-8b-instruct");
   expect(run).toHaveBeenCalledTimes(1);
 });
 it("rejects invented citations instead of storing them", async () => {
-  const run = vi
-    .fn()
-    .mockResolvedValue({
-      response: JSON.stringify({
-        findings: [{ ...output.findings[0], quote: "Amiante constatée" }],
-      }),
-    });
+  const run = vi.fn().mockResolvedValue({
+    response: JSON.stringify({
+      findings: [{ ...output.findings[0], quote: "Amiante constatée" }],
+    }),
+  });
   await expect(
     runAnalysis(input, { AI: { run }, FREE_AI_ENABLED: "true" }),
   ).rejects.toThrow("Citation IA absente");
 });
+it("accepts the object response returned by Workers AI JSON mode", async () => {
+  const run = vi.fn().mockResolvedValue({ response: output });
+  expect(
+    (await runAnalysis(input, { AI: { run }, FREE_AI_ENABLED: "true" }))
+      .findings,
+  ).toEqual(output.findings);
+  expect(run.mock.calls[0][1].response_format.type).toBe("json_schema");
+});
 it("rejects unsourced numeric claims", async () => {
-  const run = vi
-    .fn()
-    .mockResolvedValue({
-      response: JSON.stringify({
-        findings: [
-          { ...output.findings[0], detail: "Travaux de 50000 euros." },
-        ],
-      }),
-    });
+  const run = vi.fn().mockResolvedValue({
+    response: JSON.stringify({
+      findings: [{ ...output.findings[0], detail: "Travaux de 50000 euros." }],
+    }),
+  });
   await expect(
     runAnalysis(input, { AI: { run }, FREE_AI_ENABLED: "true" }),
   ).rejects.toThrow("Chiffre IA non sourcé");

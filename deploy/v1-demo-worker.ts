@@ -3,6 +3,7 @@ import {
   readAnalysisRequest,
   runAnalysis,
   type AiBinding,
+  AnalysisError,
 } from "../server/analysis";
 export default {
   async fetch(
@@ -55,11 +56,12 @@ export default {
             },
           },
         );
-      } catch {
+      } catch (e) {
         return Response.json(
           {
             error:
               "Analyse indisponible, quota atteint ou réponse non vérifiable. Aucun résultat ajouté. Utilisez l’extrait et la saisie assistée.",
+            code: e instanceof AnalysisError ? e.code : "invalid_request",
           },
           { status: 422, headers: { "Cache-Control": "no-store" } },
         );

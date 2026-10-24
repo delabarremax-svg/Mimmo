@@ -70,6 +70,9 @@ try {
       throw new Error(
         "Test IA fictif refusé : HTTP " +
           r.status +
+          " [" +
+          (d.code || "unknown") +
+          "]" +
           " · " +
           (d.error || "erreur"),
       );
