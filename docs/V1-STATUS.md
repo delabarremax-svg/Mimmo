@@ -24,8 +24,8 @@
 
 ## Validation
 
-100 tests réussis avant l'ajout des 3 tests de protection du Worker V1 ; ces
-3 tests ont aussi réussi séparément. TypeScript et builds comptes/démo réussis.
+103 tests réussis ensemble localement et dans GitHub Actions. TypeScript et
+builds comptes/démo réussis ; packaging Wrangler V1 en dry-run réussi.
 Chromium mobile à 320/390/430 px et bureau 1280 px : pas de débordement, pas
 d'erreur JS. PDF téléchargé, relu dans PDF.js et pdftotext. OCR français d'une
 capture fictive contrôlé. Même parcours passé derrière le Worker local HTTPS,
@@ -52,8 +52,12 @@ bien ou document fictif enregistré. Projet de Londres inchangé.
    paramètres. Aucun secret ne doit transiter dans le chat.
 5. Envoi email Supabase intégré restreint : destinataires et quotas à contrôler.
    SMTP dédié éventuel à autoriser avant ouverture à des utilisateurs externes.
-6. Secrets d'espace comptes non disponibles dans l'environnement : SESSION_KEY
-   et configuration serveur à installer par un canal sécurisé, jamais dans Git.
+6. Le script `deploy-v1-accounts.mjs` prépare l'espace de comptes privé séparé.
+   La clé de session est générée par le runner au premier déploiement et
+   conservée dans Cloudflare, jamais lue, affichée ni remplacée aux suivants.
+   La clé Supabase publishable est publique par conception, sans privilège
+   administratif ; elle configure uniquement le Worker, sans clé service_role.
+   Le parcours réel de confirmation/récupération reste à valider.
 7. Avant données importantes : restauration, rétention des fichiers orphelins,
    protection antivirus et documents de confidentialité à compléter.
 
@@ -70,6 +74,10 @@ réelle et n'enregistre rien dans Supabase. Il sert à tester le dossier de bout
 bout, avec des limites annoncées. Aucun appel IA facturable ni option payante.
 
 ## Prochaine décision produit indispensable
+
+Aperçu fictif publié et protection vérifiée :
+https://mimmo-v1-privee.delabarre-max.workers.dev
+Identifiant `mimmo`, mot de passe de démonstration déjà choisi.
 
 Choisir les fournisseurs IA et données de marché et leur plafond de coût avant
 activation. L'application peut être testée sans eux, mais ne sera pas présentée

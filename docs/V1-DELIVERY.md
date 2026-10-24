@@ -51,9 +51,11 @@ leur état réel et une solution de repli. Zéro résultat IA fictif.
 - Les requêtes RLS distantes avec écritures/ROLLBACK expirent dans l'intégration
   (`Invalid or expired requestState`). Audit en lecture seule OK ; aucun test
   distant d'écriture n'est annoncé réussi.
-- Aucun secret Cloudflare, clé de session ni fournisseur IA n'est injecté dans
-  l'environnement. Les secrets GitHub existants ne sont pas lisibles et ne
-  doivent jamais être extraits. Ne pas déclencher les workflows de démonstration.
+- Aucun secret Cloudflare ni fournisseur IA n'est injecté dans l'environnement.
+  Les secrets GitHub existants ne sont pas lus : le nouveau workflow V1 les
+  utilise directement. La clé de session du nouvel espace privé est générée
+  côté runner et préservée au redéploiement. Ne pas déclencher les anciens
+  workflows de démonstration.
 - Aucun service SMTP dédié ni conditions de collecte de portail validées.
   La récupération email, l'analyse visuelle et l'extraction distante devront
   être testées avant qualification de V1 complète.

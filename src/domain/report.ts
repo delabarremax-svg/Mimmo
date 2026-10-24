@@ -1,4 +1,4 @@
-import type { Property } from "./property";
+import { fields, statuses, type Property } from "./property";
 import {
   emptyInvestment,
   projectRisks,
@@ -20,7 +20,12 @@ export function reportLines(p: Property): string[] {
   ];
   for (const [k, f] of Object.entries(p.facts))
     lines.push(
-      k + " : " + (f.value || "Manquant") + " [" + f.status + "]",
+      fields[k as keyof typeof fields] +
+        " : " +
+        (f.value || "Manquant") +
+        " [" +
+        statuses[f.status] +
+        "]",
       "Source : " + (f.source || "Non fournie"),
     );
   lines.push("", "HYPOTHESES ET FINANCEMENT");
