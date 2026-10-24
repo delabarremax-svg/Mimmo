@@ -6,6 +6,8 @@ Réutiliser intégralement les PR 3 et 4 sans les fusionner. Garder les Workers
 `mimmo-demo-privee` et `mimmo-demo-ux`, et Supabase Londres, inchangés.
 Base cible : Mimmo-Paris, `nfhkfjtyfojiwajvbukk`, eu-west-3, Free.
 Branche de travail : `feat/integrated-v1`, dépendante de `feat/private-accounts`.
+Exigence confirmée : le traitement IA des vrais documents doit rester dans l'UE.
+Cloudflare Workers AI n'est pas activé ; aucun envoi à un modèle hors garantie UE.
 
 ## Architecture et séquence
 

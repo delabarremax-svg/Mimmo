@@ -5,8 +5,7 @@
   "compatibility_date": "2026-10-12",
   "workers_dev": true,
   "preview_urls": false,
-  "ai": { "binding": "AI" },
-  "vars": { "FREE_AI_ENABLED": "true" },
+  "vars": { "EU_AI_ENABLED": "false" },
   "ratelimits": [
     {
       "name": "AI_LIMITER",

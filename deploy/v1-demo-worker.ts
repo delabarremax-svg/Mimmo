@@ -2,19 +2,18 @@ import demo, { type DemoEnvironment } from "./worker";
 import {
   readAnalysisRequest,
   runAnalysis,
-  type AiBinding,
   AnalysisError,
 } from "../server/analysis";
+import type { EuAiEnvironment } from "../server/eu-ai";
 export default {
   async fetch(
     request: Request,
-    env: DemoEnvironment & {
-      AI?: AiBinding;
-      FREE_AI_ENABLED?: string;
-      AI_LIMITER?: {
-        limit(input: { key: string }): Promise<{ success: boolean }>;
-      };
-    },
+    env: DemoEnvironment &
+      EuAiEnvironment & {
+        AI_LIMITER?: {
+          limit(input: { key: string }): Promise<{ success: boolean }>;
+        };
+      },
   ) {
     if (new URL(request.url).pathname === "/demo-api/analyze") {
       const gate = await demo.fetch(
@@ -63,7 +62,13 @@ export default {
               "Analyse indisponible, quota atteint ou réponse non vérifiable. Aucun résultat ajouté. Utilisez l’extrait et la saisie assistée.",
             code: e instanceof AnalysisError ? e.code : "invalid_request",
           },
-          { status: 422, headers: { "Cache-Control": "no-store" } },
+          {
+            status:
+              e instanceof AnalysisError && e.code === "eu_ai_not_configured"
+                ? 503
+                : 422,
+            headers: { "Cache-Control": "no-store" },
+          },
         );
       }
     }

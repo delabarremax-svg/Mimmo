@@ -2,20 +2,19 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { investmentSchema } from "../src/domain/investment";
 import { extractAuthorizedListing } from "./listing";
-import { runAnalysis, type AiBinding } from "./analysis";
+import { runAnalysis } from "./analysis";
+import type { EuAiEnvironment } from "./eu-ai";
 import {
   fields,
   validateFact,
   validateUrl,
   type FieldKey,
 } from "../src/domain/property";
-export interface Environment {
+export interface Environment extends EuAiEnvironment {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   SESSION_KEY: string;
   LISTING_ALLOWED_HOSTS?: string;
-  AI?: AiBinding;
-  FREE_AI_ENABLED?: string;
   AUTH_LIMITER: {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
@@ -85,6 +84,14 @@ const factSchema = z
   .strict();
 const propertySchema = z
   .object({
+    photoRef: z
+      .object({
+        name: z.string().regex(/^[0-9a-f-]{36}\.(?:jpg|png|webp)$/),
+        originalName: z.string().max(160),
+        providedAt: z.iso.datetime(),
+      })
+      .strict()
+      .optional(),
     investment: investmentSchema.optional(),
     id: z.uuid(),
     url: z.string().max(8000),
@@ -438,6 +445,38 @@ export async function api(
           422,
         );
       }
+    } else if (
+      /^\/api\/photos\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/.test(
+        path,
+      ) &&
+      request.method === "GET"
+    ) {
+      const projectId = path.split("/")[3],
+        name = path.split("/")[4];
+      const { data: project, error: projectError } = await db
+        .from("private_projects")
+        .select("id")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (projectError || !project)
+        return json({ error: "Projet introuvable." }, 404);
+      const { data, error } = await db.storage
+        .from("mimmo-documents")
+        .download(user.id + "/" + projectId + "/" + name);
+      if (error || !data) return json({ error: "Photo introuvable." }, 404);
+      const mime = name.endsWith(".png")
+        ? "image/png"
+        : name.endsWith(".webp")
+          ? "image/webp"
+          : "image/jpeg";
+      response = new Response(data, {
+        headers: {
+          "Content-Type": mime,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
     } else if (/^\/api\/documents\/[0-9a-f-]{36}(\/[^/]+)?$/.test(path)) {
       const projectId = path.split("/")[3],
         name = path.split("/")[4];

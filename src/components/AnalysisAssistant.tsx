@@ -31,13 +31,26 @@ export default function AnalysisAssistant({
     setFindings([]);
     setUsed([]);
   }, [evidence]);
+  if (import.meta.env.VITE_EU_AI_ENABLED !== "true")
+    return (
+      <section className="panel">
+        <h4>Analyse IA européenne</h4>
+        <p>
+          L’analyse IA des documents réels attend le raccordement d’un
+          fournisseur garantissant un traitement dans l’Union européenne. Aucun
+          contenu n’est envoyé à une IA dans cet aperçu. La lecture PDF, l’OCR
+          local et les observations sourcées restent disponibles.
+        </p>
+      </section>
+    );
   return (
     <section className="panel investment-form">
       <h4>Un second regard, avec l’IA</h4>
       <p>
         Expérimental : l’IA propose des points à vérifier. Elle ne remplace ni
         un diagnostiqueur ni un artisan et ne calcule aucun rendement ou budget.
-        Seul l’aperçu privé expérimental dispose actuellement de ce service.
+        L’activation nécessite un fournisseur et des conditions garantissant le
+        traitement dans l’Union européenne.
       </p>
       <form
         className="investment-form"
@@ -183,10 +196,9 @@ export default function AnalysisAssistant({
             onChange={(e) => setConsent(e.target.checked)}
           />
           <span>
-            J’accepte d’envoyer cet extrait ou cette vignette à Cloudflare
-            Workers AI pour cette analyse. Le traitement n’est pas garanti
-            exclusivement dans l’Union européenne. Je dispose des droits
-            nécessaires et vérifierai le résultat.
+            J’accepte d’envoyer cet extrait ou cette vignette au fournisseur
+            configuré avec un traitement garanti dans l’Union européenne. Je
+            dispose des droits nécessaires et vérifierai le résultat.
           </span>
         </label>
         <button

@@ -21,16 +21,18 @@
   vérification d'identité et révocation. Tests SDK simulés, email réel non testé.
 - Documents privés : API et migration additive appliquée sur Mimmo-Paris ;
   tests PostgreSQL embarqués pour isolation et refus des chemins étrangers.
-- Une intégration expérimentale Cloudflare Workers AI est préparée pour
-  l'aperçu fictif privé uniquement : texte et vision, consentement d'envoi,
-  deux appels/minute/IP, citations et chiffres contrôlés, résultats toujours
-  hypothétiques. Aucun modèle nécessitant une offre payante ni AI Gateway.
-  La preuve d'inférence distante doit être obtenue par le contrôle de publication.
+- Photos de projet : dépôt privé, association versionnée et reprise après
+  reconnexion ; les images sont servies par une API contrôlant le propriétaire.
+- IA : interface et validation des réponses préparées, mais inférence désactivée.
+  Le fondateur exige un traitement IA dans l'UE. L'adaptateur exige approbation
+  des conditions UE ET du budget avant tout appel. Aucune clé IA configurée.
+  Les réponses éventuelles restent des hypothèses avec citations contrôlées.
 
 ## Validation
 
-103 tests réussis ensemble localement et dans GitHub Actions, puis ajout d'un
-test transactionnel RLS et d'un test d'échec de révocation. TypeScript et
+124 tests locaux réussis, incluant contrôles du fournisseur européen, refus
+d'appel sans approbations et photos privées. La CI du dernier commit doit être
+confirmée dans GitHub Actions. TypeScript et
 builds comptes/démo réussis ; packaging Wrangler V1 en dry-run réussi.
 Chromium mobile à 320/390/430 px et bureau 1280 px : pas de débordement, pas
 d'erreur JS. PDF téléchargé, relu dans PDF.js et pdftotext. OCR français d'une
@@ -44,12 +46,13 @@ bien ou document fictif enregistré. Projet de Londres inchangé.
 
 ## Bloque la qualification de V1 complète
 
-1. L'IA expérimentale doit passer le contrôle distant sur un texte et une image
-   fictifs. Elle n'est pas activée sur l'espace de comptes réels. Selon la
-   documentation Cloudflare consultée, Workers Free inclut 10 000 neurones/jour
-   et refuse les opérations au-delà, sans passage automatique à une offre payante.
-   Traitement IA non garanti exclusivement dans l'UE : consentement explicite,
-   minimisation des données et validation avant utilisation de documents réels.
+1. IA UE obligatoire : l'essai Cloudflare a été retiré (pas de garantie UE).
+   Les deux essais distants n'ont pas produit d'analyse validée. Aucune donnée
+   réelle n'a été utilisée. Aucun binding IA Cloudflare ne subsiste dans le
+   nouveau déploiement ; l'API renvoie 503 tant que le fournisseur UE est absent.
+   Un adaptateur Mistral à endpoint fixe est préparé, mais le compte, les
+   conditions de résidence UE, le modèle, les accès et tout coût éventuel
+   doivent être validés avant activation. Ne pas déclarer l'IA fonctionnelle.
 2. Pas de fournisseur de marché connecté ni d'autorisation de collecte de
    portail. Les comparables documentés sont saisis par l'utilisateur.
 3. Le blocage des tests SQL distants a été résolu avec un script transactionnel
@@ -77,8 +80,8 @@ bien ou document fictif enregistré. Projet de Londres inchangé.
 ## Démonstration privée
 
 Le workflow `Aperçu V1 privé MIMMO` ne cible que `feat/integrated-v1`, sans accès
-aux forks et avec lecture seule du dépôt. Il teste, compile, puis publie uniquement
-`mimmo-v1-privee`, distinct des deux démonstrations existantes. Il réutilise les
+aux forks et avec lecture seule du dépôt. Il teste, compile, puis publie les deux
+Workers V1 privés, distincts des démonstrations existantes. Il réutilise les
 secrets Cloudflare et le mot de passe de démonstration déjà configurés. Les assets
 HTML/JS/CSS/PDF/OCR sont protégés côté serveur et vérifiés après publication.
 
@@ -96,11 +99,11 @@ Espace comptes privé préparé et protections vérifiées :
 https://mimmo-v1-comptes-privee.delabarre-max.workers.dev
 La configuration des emails Supabase reste nécessaire au parcours de connexion.
 
-Choisir les fournisseurs IA et données de marché et leur plafond de coût avant
-activation. L'application peut être testée sans eux, mais ne sera pas présentée
+Raccorder un fournisseur IA garantissant le traitement UE et choisir les données
+de marché autorisées, sans coût non approuvé. L'application peut être testée sans eux, mais ne sera pas présentée
 comme une V1 complète tant que ces intégrations et les comptes réels ne sont
 pas validés.
 
-Documentation examinée pour l'option gratuite :
+Documentation examinée pour l'option Cloudflare finalement écartée :
 https://developers.cloudflare.com/workers-ai/platform/pricing/
 https://developers.cloudflare.com/workers-ai/platform/data-usage/

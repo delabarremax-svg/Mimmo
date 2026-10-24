@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, House, Trash2, Expand } from "lucide-react";
 import Modal from "./Modal";
 import { readPhoto, type PropertyPhoto as Photo } from "../domain/photo";
+import { accountsEnabled } from "../services/account";
 export default function PropertyPhoto({
   photo,
   onChange,
   compact = false,
 }: {
   photo?: Photo;
-  onChange?: (photo?: Photo) => void;
+  onChange?: (photo?: Photo) => void | Promise<void>;
   compact?: boolean;
 }) {
   const mounted = useRef(true);
@@ -28,8 +29,14 @@ export default function PropertyPhoto({
     setError("");
     try {
       const photo = await readPhoto(file);
-      if (mounted.current) onChange(photo);
-      else URL.revokeObjectURL(photo.url);
+      if (mounted.current) {
+        try {
+          await onChange(photo);
+        } catch (e) {
+          URL.revokeObjectURL(photo.url);
+          throw e;
+        }
+      } else URL.revokeObjectURL(photo.url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Photo indisponible.");
     } finally {
@@ -79,7 +86,7 @@ export default function PropertyPhoto({
             >
               <ImagePlus size={17} />
               {busy
-                ? "Lecture de la photo…"
+                ? "Préparation de la photo…"
                 : photo
                   ? "Changer la photo"
                   : "Ajouter une photo"}
@@ -88,7 +95,20 @@ export default function PropertyPhoto({
               <button
                 className="photo-remove"
                 aria-label="Retirer la photo"
-                onClick={() => onChange()}
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await onChange();
+                  } catch (e) {
+                    setError(
+                      e instanceof Error ? e.message : "Retrait impossible.",
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
               >
                 <Trash2 size={17} />
               </button>
@@ -103,7 +123,11 @@ export default function PropertyPhoto({
               ? "Photo fournie par vous · association au bien non vérifiée"
               : "JPG, PNG ou WebP · 10 Mo maximum"}
             <br />
-            Photo temporaire, effacée au rechargement.
+            {photo?.persisted
+              ? "Photo enregistrée dans votre espace privé."
+              : accountsEnabled
+                ? "La photo sera sauvegardée après confirmation."
+                : "Photo temporaire, effacée au rechargement."}
           </p>
           <input
             ref={input}

@@ -59,7 +59,7 @@ export default function PropertyDetail({
   photo?: Photo;
   initialMode: "overview" | "edit";
   onSave: (p: Property) => void | Promise<void>;
-  onPhoto: (p?: Photo) => void;
+  onPhoto: (p?: Photo) => void | Promise<void>;
   onBack: () => void;
   onDirty: (dirty: boolean) => void;
 }) {

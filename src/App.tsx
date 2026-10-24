@@ -32,6 +32,7 @@ export default function App() {
       .then(async ({ user }) => {
         const result = await api<{ properties: Property[] }>("properties");
         setProperties(result.properties);
+        restorePhotos(result.properties);
         setUser(user.email);
       })
       .catch(() => setUser(undefined))
@@ -40,6 +41,7 @@ export default function App() {
   async function connected(email: string) {
     const result = await api<{ properties: Property[] }>("properties");
     setProperties(result.properties);
+    restorePhotos(result.properties);
     setUser(email);
     setPage("list");
   }
@@ -144,17 +146,74 @@ export default function App() {
       setBusy(false);
     }
   }
-  function photo(p?: Photo) {
+  function restorePhotos(items: Property[]) {
+    setPhotos(
+      Object.fromEntries(
+        items
+          .filter((p) => p.photoRef)
+          .map((p) => [
+            p.id,
+            {
+              url: `/api/photos/${p.id}/${encodeURIComponent(p.photoRef!.name)}`,
+              name: p.photoRef!.originalName,
+              providedAt: p.photoRef!.providedAt,
+              persisted: true,
+            },
+          ]),
+      ),
+    );
+  }
+  async function photo(p?: Photo) {
     if (!active) return;
+    let nextPhoto = p;
+    if (accountsEnabled) {
+      if (!property || busy)
+        throw new Error("Un enregistrement est en cours. Réessayez ensuite.");
+      setBusy(true);
+      try {
+        if (p) {
+          if (!p.file) throw new Error("Fichier photo absent.");
+          const r = await fetch("/api/documents/" + property.id, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": p.file.type,
+              "X-File-Name": encodeURIComponent(p.name),
+            },
+            body: p.file,
+          });
+          if (!r.ok) throw new Error("Photo non enregistrée. Réessayez.");
+          const { name } = await r.json();
+          await saveProperty({
+            ...property,
+            photoRef: {
+              name,
+              originalName: p.name.slice(0, 160),
+              providedAt: p.providedAt,
+            },
+          });
+          nextPhoto = {
+            url: `/api/photos/${property.id}/${encodeURIComponent(name)}`,
+            name: p.name,
+            providedAt: p.providedAt,
+            persisted: true,
+          };
+          URL.revokeObjectURL(p.url);
+        } else await saveProperty({ ...property, photoRef: undefined });
+      } finally {
+        setBusy(false);
+      }
+    }
     const old = photos[active];
     if (old) {
       URL.revokeObjectURL(old.url);
       photoUrls.current.delete(old.url);
     }
-    if (p) photoUrls.current.add(p.url);
+    if (nextPhoto?.url.startsWith("blob:"))
+      photoUrls.current.add(nextPhoto.url);
     setPhotos((prev) => {
       const next = { ...prev };
-      if (p) next[active] = p;
+      if (nextPhoto) next[active] = nextPhoto;
       else delete next[active];
       return next;
     });
@@ -230,7 +289,7 @@ export default function App() {
         <span>
           {accountsEnabled
             ? user
-              ? `Espace privé · ${user} · Photos temporaires, non sauvegardées.`
+              ? `Espace privé · ${user} · Biens et photos sauvegardés après confirmation.`
               : "Vos biens sauvegardés dans votre espace privé."
             : "Mode aperçu · Pas encore de compte MIMMO ni de sauvegarde privée. Vos saisies et photos restent en mémoire et disparaissent au rechargement."}
         </span>
@@ -391,7 +450,16 @@ export default function App() {
                     setProperties((prev) =>
                       prev.filter((p) => p.id !== property.id),
                     );
-                    photo();
+                    const oldPhoto = photos[property.id];
+                    if (oldPhoto?.url.startsWith("blob:")) {
+                      URL.revokeObjectURL(oldPhoto.url);
+                      photoUrls.current.delete(oldPhoto.url);
+                    }
+                    setPhotos((prev) => {
+                      const next = { ...prev };
+                      delete next[property.id];
+                      return next;
+                    });
                     setDirty(false);
                     setPage("list");
                     setSyncMessage("Bien supprimé.");

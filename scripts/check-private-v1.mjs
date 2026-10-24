@@ -54,70 +54,27 @@ try {
   const auth =
     "Basic " +
     Buffer.from("mimmo:" + process.env.DEMO_PASSWORD).toString("base64");
-  async function analyze(body) {
-    const r = await fetch(new URL("/demo-api/analyze", base), {
-      method: "POST",
-      headers: {
-        Authorization: auth,
-        Origin: new URL(base).origin,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(90000),
-    });
-    const d = await r.json();
-    if (!r.ok)
-      throw new Error(
-        "Test IA fictif refusé : HTTP " +
-          r.status +
-          " [" +
-          (d.code || "unknown") +
-          "]" +
-          " · " +
-          (d.error || "erreur"),
-      );
-    if (!Array.isArray(d.findings) || d.status !== "estimated")
-      throw new Error("Contrat IA invalide.");
-    return d;
-  }
-  const text = await analyze({
-    source: "PV FICTIF MIMMO",
-    page: 2,
-    text: "Exercice fictif. Des travaux de toiture ont été votés. Le montant du devis est manquant.",
-    consent: true,
+  const blocked = await fetch(new URL("/demo-api/analyze", base), {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      Origin: new URL(base).origin,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source: "TEST FICTIF MIMMO",
+      page: 1,
+      text: "Document synthétique.",
+      consent: true,
+    }),
   });
-  console.log(
-    "IA texte fictif : contrat et citations validés, " +
-      text.findings.length +
-      " proposition(s).",
-  );
-  const image = await page.evaluate(() => {
-    const c = document.createElement("canvas");
-    c.width = 400;
-    c.height = 140;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, 400, 140);
-    ctx.fillStyle = "black";
-    ctx.font = "23px Arial";
-    ctx.fillText("DOCUMENT FICTIF MIMMO", 20, 60);
-    return c.toDataURL("image/jpeg", 0.5).split(",")[1];
-  });
-  const vision = await analyze({
-    source: "CAPTURE SYNTHÉTIQUE MIMMO",
-    page: 1,
-    text: "Capture synthétique sans bien réel.",
-    image,
-    consent: true,
-  });
-  console.log(
-    "IA image synthétique : contrat validé, " +
-      vision.findings.length +
-      " proposition(s).",
-  );
+  const blockedResult = await blocked.json();
+  if (blocked.status !== 503 || blockedResult.code !== "eu_ai_not_configured")
+    throw new Error("Le verrou de traitement IA européen n’est pas effectif.");
+  console.log("Verrou IA UE vérifié : aucune inférence externe activée.");
   if (errors.length) throw new Error("Erreur JavaScript détectée.");
   console.log(
-    "Parcours privé mobile, téléchargement PDF, lecture PDF et deux appels IA fictifs validés. Aucun compte ni donnée de projet créé en base.",
+    "Parcours privé mobile, téléchargement PDF, lecture PDF et verrou IA UE validés. Aucun compte ni donnée de projet créé en base.",
   );
 } finally {
   await browser.close();
