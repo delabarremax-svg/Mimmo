@@ -21,10 +21,16 @@
   vérification d'identité et révocation. Tests SDK simulés, email réel non testé.
 - Documents privés : API et migration additive appliquée sur Mimmo-Paris ;
   tests PostgreSQL embarqués pour isolation et refus des chemins étrangers.
+- Une intégration expérimentale Cloudflare Workers AI est préparée pour
+  l'aperçu fictif privé uniquement : texte et vision, consentement d'envoi,
+  deux appels/minute/IP, citations et chiffres contrôlés, résultats toujours
+  hypothétiques. Aucun modèle nécessitant une offre payante ni AI Gateway.
+  La preuve d'inférence distante doit être obtenue par le contrôle de publication.
 
 ## Validation
 
-103 tests réussis ensemble localement et dans GitHub Actions. TypeScript et
+103 tests réussis ensemble localement et dans GitHub Actions, puis ajout d'un
+test transactionnel RLS et d'un test d'échec de révocation. TypeScript et
 builds comptes/démo réussis ; packaging Wrangler V1 en dry-run réussi.
 Chromium mobile à 320/390/430 px et bureau 1280 px : pas de débordement, pas
 d'erreur JS. PDF téléchargé, relu dans PDF.js et pdftotext. OCR français d'une
@@ -38,14 +44,21 @@ bien ou document fictif enregistré. Projet de Londres inchangé.
 
 ## Bloque la qualification de V1 complète
 
-1. Aucun fournisseur IA autorisé/configuré : pas d'interprétation visuelle des
-   photos ni d'analyse sémantique automatique des diagnostics. L'OCR et les
-   règles ne sont pas présentés comme une expertise ou une IA générale.
+1. L'IA expérimentale doit passer le contrôle distant sur un texte et une image
+   fictifs. Elle n'est pas activée sur l'espace de comptes réels. Selon la
+   documentation Cloudflare consultée, Workers Free inclut 10 000 neurones/jour
+   et refuse les opérations au-delà, sans passage automatique à une offre payante.
+   Traitement IA non garanti exclusivement dans l'UE : consentement explicite,
+   minimisation des données et validation avant utilisation de documents réels.
 2. Pas de fournisseur de marché connecté ni d'autorisation de collecte de
    portail. Les comparables documentés sont saisis par l'utilisateur.
-3. Tests RLS distants avec écritures bloqués par `Invalid or expired requestState`.
-   L'audit des règles et les tests PostgreSQL embarqués ne remplacent pas le
-   parcours réel de deux comptes dans Supabase.
+3. Le blocage des tests SQL distants a été résolu avec un script transactionnel
+   autonome testé préalablement en PostgreSQL local. Neuf groupes de contrôles
+   ont réussi sur Mimmo-Paris : sauvegarde/lecture/mise à jour/version, versions
+   périmées, vérification forgée, transfert de propriétaire, refus croisés
+   Alice/Bob, bien propre à Bob, accès anonyme et suppression par le propriétaire.
+   Le ROLLBACK a laissé zéro utilisateur, bien, identité, session ou document.
+   Le parcours HTTP de deux comptes avec vrais emails reste à valider.
 4. Configuration Supabase Auth à finaliser : Site URL, redirections et modèles
    d'emails de confirmation/récupération (lien token_hash côté serveur), JWT
    900 secondes. Les outils connectés n'exposent pas la modification de ces
@@ -79,7 +92,15 @@ Aperçu fictif publié et protection vérifiée :
 https://mimmo-v1-privee.delabarre-max.workers.dev
 Identifiant `mimmo`, mot de passe de démonstration déjà choisi.
 
+Espace comptes privé préparé et protections vérifiées :
+https://mimmo-v1-comptes-privee.delabarre-max.workers.dev
+La configuration des emails Supabase reste nécessaire au parcours de connexion.
+
 Choisir les fournisseurs IA et données de marché et leur plafond de coût avant
 activation. L'application peut être testée sans eux, mais ne sera pas présentée
 comme une V1 complète tant que ces intégrations et les comptes réels ne sont
 pas validés.
+
+Documentation examinée pour l'option gratuite :
+https://developers.cloudflare.com/workers-ai/platform/pricing/
+https://developers.cloudflare.com/workers-ai/platform/data-usage/

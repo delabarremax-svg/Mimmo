@@ -16,6 +16,7 @@ beforeAll(async () => {
  db = new PGlite();
  await db.exec(`create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); insert into auth.users values('${alice}'),('${bob}'); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; grant usage on schema auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;`);
  await db.exec(readFileSync('database/002_private_projects.sql','utf8'));
+ await db.exec(readFileSync('database/004_investment_provenance.sql','utf8'));
 }, 30000);
 afterAll(async () => db.close());
 it('Alice saves, updates atomically, and detects stale versions', async () => {
@@ -37,6 +38,8 @@ it('anonymous access and forged verified facts fail in PostgreSQL', async () => 
  await expect(db.query('select public.save_private_project($1,0,$2)',[crypto.randomUUID(),p])).rejects.toThrow();
  const forged = structuredClone(p); forged.facts.title.status='verified';
  await expect(asUser(alice,'select public.save_private_project($1,2,$2)',[p.id,forged])).rejects.toThrow();
+ const forgedObservation = {...p,investment:{observations:[{status:'verified',value:'forged'}]}};
+ await expect(asUser(alice,'select public.save_private_project($1,2,$2)',[p.id,forgedObservation])).rejects.toThrow();
 });
 it('Bob can create his own project and Alice cannot read it; owner deletion persists', async () => {
  const own=createProperty('https://example.com/bob');

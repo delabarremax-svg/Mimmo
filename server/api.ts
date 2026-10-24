@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { investmentSchema } from "../src/domain/investment";
 import { extractAuthorizedListing } from "./listing";
+import { runAnalysis, type AiBinding } from "./analysis";
 import {
   fields,
   validateFact,
@@ -13,6 +14,8 @@ export interface Environment {
   SUPABASE_PUBLISHABLE_KEY: string;
   SESSION_KEY: string;
   LISTING_ALLOWED_HOSTS?: string;
+  AI?: AiBinding;
+  FREE_AI_ENABLED?: string;
   AUTH_LIMITER: {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
@@ -380,7 +383,29 @@ export async function api(
       global: { headers: { Authorization: `Bearer ${session.access_token}` } },
     });
     let response: Response;
-    if (path === "/api/extract" && request.method === "POST") {
+    if (path === "/api/analyze" && request.method === "POST") {
+      if (
+        !(
+          await env.AUTH_LIMITER.limit({
+            key:
+              "analysis:" +
+              (request.headers.get("CF-Connecting-IP") || "unknown"),
+          })
+        ).success
+      )
+        return json({ error: "Trop de demandes." }, 429);
+      try {
+        response = json(await runAnalysis(await body(), env));
+      } catch {
+        response = json(
+          {
+            error:
+              "Analyse IA indisponible ou réponse non vérifiable. Aucun résultat ajouté.",
+          },
+          422,
+        );
+      }
+    } else if (path === "/api/extract" && request.method === "POST") {
       if (
         !(
           await env.AUTH_LIMITER.limit({
@@ -501,11 +526,13 @@ export async function api(
     } else if (path === "/api/session" && request.method === "GET")
       response = json({ user: { email: user.email } });
     else if (path === "/api/logout" && request.method === "POST") {
-      await db.auth.setSession({
+      const { error: sessionError } = await db.auth.setSession({
         access_token: session.access_token,
         refresh_token: session.refresh_token,
       });
-      await db.auth.signOut();
+      if (sessionError) throw sessionError;
+      const { error: logoutError } = await db.auth.signOut();
+      if (logoutError) throw logoutError;
       outgoingCookie = cookie("", 0);
       response = json({ ok: true });
     } else if (path === "/api/properties" && request.method === "GET") {

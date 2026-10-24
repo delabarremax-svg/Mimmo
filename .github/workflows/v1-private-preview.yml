@@ -2,6 +2,7 @@ name: Aperçu V1 privé MIMMO
 on:
   push:
     branches: [feat/integrated-v1]
+    paths-ignore: ['docs/**', 'README.md']
 permissions:
   contents: read
 concurrency:
@@ -52,3 +53,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
           CONFIRM_FREE_PLAN: "true"
+      - name: Installer Chromium pour le contrôle privé
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Vérifier le parcours et l’IA uniquement sur des contenus fictifs
+        run: node scripts/check-private-v1.mjs
+        env:
+          MIMMO_TEST_URL: https://mimmo-v1-privee.delabarre-max.workers.dev
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}

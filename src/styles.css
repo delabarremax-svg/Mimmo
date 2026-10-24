@@ -2022,6 +2022,18 @@ h1:focus {
   min-height: 96px;
   resize: vertical;
 }
+.investment .consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-weight: 400;
+}
+.investment .consent input {
+  width: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  accent-color: #184e3b;
+}
 .document-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

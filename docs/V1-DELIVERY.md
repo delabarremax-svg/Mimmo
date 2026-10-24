@@ -48,9 +48,10 @@ leur état réel et une solution de repli. Zéro résultat IA fictif.
 
 ## Blocages observés
 
-- Les requêtes RLS distantes avec écritures/ROLLBACK expirent dans l'intégration
-  (`Invalid or expired requestState`). Audit en lecture seule OK ; aucun test
-  distant d'écriture n'est annoncé réussi.
+- Les premières requêtes RLS distantes expiraient dans l'intégration. Blocage
+  résolu avec le script autonome `tests/rls-transaction.sql`, exécuté localement
+  puis sur Mimmo-Paris : neuf groupes de contrôles réussis et zéro donnée après
+  ROLLBACK. Le parcours HTTP de comptes réels reste à tester.
 - Aucun secret Cloudflare ni fournisseur IA n'est injecté dans l'environnement.
   Les secrets GitHub existants ne sont pas lus : le nouveau workflow V1 les
   utilise directement. La clé de session du nouvel espace privé est générée

@@ -26,6 +26,7 @@ import {
 import { createReportPdf } from "../domain/report";
 import { accountsEnabled, api } from "../services/account";
 import DocumentReader from "./DocumentReader";
+import AnalysisAssistant from "./AnalysisAssistant";
 type Tab = "sources" | "market" | "works" | "finance" | "summary";
 const labels: Record<Tab, string> = {
   sources: "Sources & pièces",
@@ -78,6 +79,11 @@ export default function InvestmentWorkspace({
   const [documents, setDocuments] = useState<RemoteDocument[]>([]),
     [documentBusy, setDocumentBusy] = useState(false);
   const sourceForm = useRef<HTMLFormElement>(null);
+  const [aiEvidence, setAiEvidence] = useState({
+    source: p.url,
+    page: 1,
+    text: "",
+  });
   const state = progress(p, draft),
     risks = projectRisks(p, draft);
   function change(next: Investment) {
@@ -313,6 +319,7 @@ export default function InvestmentWorkspace({
             )}
             <DocumentReader
               onUse={(text, page, source) => {
+                setAiEvidence({ source, page, text: text.slice(0, 2000) });
                 const form = sourceForm.current;
                 if (!form) return;
                 for (const [name, value] of Object.entries({
@@ -329,6 +336,23 @@ export default function InvestmentWorkspace({
                 setMessage(
                   "Extrait préparé dans le formulaire. Précisez le point observé et vérifiez le texte.",
                 );
+              }}
+            />
+            <AnalysisAssistant
+              evidence={aiEvidence}
+              onAdd={(o) => {
+                try {
+                  const next = {
+                    ...draft,
+                    observations: [...draft.observations, o],
+                  };
+                  investmentSchema.parse(next);
+                  change(next);
+                } catch {
+                  setError(
+                    "Limite du dossier atteinte. Retirez ou raccourcissez une observation avant de réessayer.",
+                  );
+                }
               }}
             />
             <form
@@ -411,10 +435,11 @@ export default function InvestmentWorkspace({
             </form>
             <div className="notice">
               <p>
-                L’analyse automatique des images et PDF nécessite un fournisseur
-                IA autorisé et testé. Pour l’instant, examinez la pièce et
-                relevez un extrait : MIMMO signale les points de vigilance par
-                règles explicites, sans établir de diagnostic.
+                La lecture locale relève du texte. Les propositions IA restent
+                des hypothèses à contrôler dans les originaux. En cas de pièce
+                illisible ou de service indisponible, utilisez un extrait ou la
+                saisie assistée. MIMMO n’établit pas de diagnostic
+                professionnel.
               </p>
             </div>
             {draft.observations.map((o) => (

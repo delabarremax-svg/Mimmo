@@ -5,6 +5,15 @@
   "compatibility_date": "2026-10-12",
   "workers_dev": true,
   "preview_urls": false,
+  "ai": { "binding": "AI" },
+  "vars": { "FREE_AI_ENABLED": "true" },
+  "ratelimits": [
+    {
+      "name": "AI_LIMITER",
+      "namespace_id": "1006",
+      "simple": { "limit": 2, "period": 60 }
+    }
+  ],
   "assets": {
     "directory": "../dist",
     "binding": "ASSETS",
