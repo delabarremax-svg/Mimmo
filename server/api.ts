@@ -284,8 +284,18 @@ export async function api(
       if (!user) return json({ error: "Session invalide." }, 401);
       const { error } = await client.auth.updateUser({ password });
       if (error) return json({ error: "Changement refusé. Réessayez." }, 400);
-      await client.auth.signOut({ scope: "global" });
-      const response = json({ ok: true });
+      const { error: revocationError } = await client.auth.signOut({
+        scope: "global",
+      });
+      const response = json({
+        ok: true,
+        ...(revocationError
+          ? {
+              warning:
+                "Mot de passe modifié. La déconnexion des autres appareils n’a pas été confirmée. Reconnectez-vous, puis déconnectez-vous pour réessayer.",
+            }
+          : {}),
+      });
       response.headers.append(
         "Set-Cookie",
         "__Host-mimmo-recovery=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0",

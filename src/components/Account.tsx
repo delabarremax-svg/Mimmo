@@ -38,12 +38,18 @@ export default function Account({
                 "Si ce compte existe, un email de récupération a été demandé. Vérifiez aussi les indésirables.",
               );
             } else if (mode === "recover") {
-              await api("update-password", "POST", {
-                password: data.get("password"),
-              });
+              const result = await api<{ warning?: string }>(
+                "update-password",
+                "POST",
+                {
+                  password: data.get("password"),
+                },
+              );
               history.replaceState(null, "", location.pathname);
               setMode("login");
-              setMessage("Mot de passe modifié. Reconnectez-vous.");
+              setMessage(
+                result.warning || "Mot de passe modifié. Reconnectez-vous.",
+              );
             } else {
               const result = await api<{
                 user: { email: string } | null;

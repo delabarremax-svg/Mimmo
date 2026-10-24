@@ -95,3 +95,27 @@ it("verifies recovery identity, updates password and revokes sessions", async ()
   expect(mock.signOut).toHaveBeenCalledWith({ scope: "global" });
   expect(r.headers.get("Set-Cookie")).toContain("Max-Age=0");
 });
+it("reports incomplete revocation without hiding a successful password change", async () => {
+  const token = await seal(
+    { access_token: "a", refresh_token: "r", until: Date.now() + 10000 },
+    env.SESSION_KEY,
+  );
+  mock.setSession.mockResolvedValue({ error: null });
+  mock.getUser.mockResolvedValue({ data: { user: { id: "alice" } } });
+  mock.updateUser.mockResolvedValue({ error: null });
+  mock.signOut.mockResolvedValue({ error: new Error("provider unavailable") });
+  const r = await api(
+    post(
+      "update-password",
+      { password: "new-password-long" },
+      "__Host-mimmo-recovery=" + token,
+    ),
+    env,
+  );
+  expect(r.status).toBe(200);
+  expect(await r.json()).toMatchObject({
+    ok: true,
+    warning: expect.stringContaining("n’a pas été confirmée"),
+  });
+  expect(r.headers.get("Set-Cookie")).toContain("Max-Age=0");
+});

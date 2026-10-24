@@ -30,9 +30,9 @@
 
 ## Validation
 
-124 tests locaux réussis, incluant contrôles du fournisseur européen, refus
-d'appel sans approbations et photos privées. La CI du dernier commit doit être
-confirmée dans GitHub Actions. TypeScript et
+124 tests réussis localement et dans GitHub, puis ajout d'un test de signalement
+d'échec de révocation lors du changement de mot de passe. Contrôles du fournisseur
+UE, refus d'appel sans approbations et photos privées inclus. TypeScript et
 builds comptes/démo réussis ; packaging Wrangler V1 en dry-run réussi.
 Chromium mobile à 320/390/430 px et bureau 1280 px : pas de débordement, pas
 d'erreur JS. PDF téléchargé, relu dans PDF.js et pdftotext. OCR français d'une
@@ -77,6 +77,12 @@ bien ou document fictif enregistré. Projet de Londres inchangé.
 7. Avant données importantes : restauration, rétention des fichiers orphelins,
    protection antivirus et documents de confidentialité à compléter.
 
+L'avertissement Supabase sur la fonction `SECURITY DEFINER` reste intentionnel :
+la fonction de sauvegarde impose elle-même identité/propriétaire/version et
+n'est pas exécutable par les anonymes. Contrôles SQL testés ; aucune certification
+générale de sécurité n'est revendiquée. Référence de l'avertissement :
+https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+
 ## Démonstration privée
 
 Le workflow `Aperçu V1 privé MIMMO` ne cible que `feat/integrated-v1`, sans accès
@@ -98,6 +104,7 @@ Identifiant `mimmo`, mot de passe de démonstration déjà choisi.
 Espace comptes privé préparé et protections vérifiées :
 https://mimmo-v1-comptes-privee.delabarre-max.workers.dev
 La configuration des emails Supabase reste nécessaire au parcours de connexion.
+Guide précis : [ACTIVATION-COMPTES-V1.md](ACTIVATION-COMPTES-V1.md).
 
 Raccorder un fournisseur IA garantissant le traitement UE et choisir les données
 de marché autorisées, sans coût non approuvé. L'application peut être testée sans eux, mais ne sera pas présentée
