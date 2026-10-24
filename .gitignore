@@ -8,3 +8,5 @@ work/
 .wrangler/
 .dev.vars
 .dev.vars.*
+public/ocr/
+public/pdf.worker.mjs

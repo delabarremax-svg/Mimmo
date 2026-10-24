@@ -55,7 +55,7 @@ it("conserve le brouillon entre étapes, sauvegarde les étapes séparément et 
   ).toBeVisible();
   expect(
     screen.getByText(
-      "Aucun score, rendement ou résultat d’analyse n’est calculé actuellement.",
+      "Les simulations dépendent exclusivement des hypothèses que vous renseignez dans le dossier.",
     ),
   ).toBeVisible();
 });

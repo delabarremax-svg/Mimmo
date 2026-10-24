@@ -143,11 +143,11 @@ export default function Home({
       <div className="roadmap">
         <ShieldCheck />
         <div>
-          <strong>Un socle clair, avant les analyses.</strong>
+          <strong>Un dossier pour décider avec plus de recul.</strong>
           <p>
-            Les modules DPE, copropriété, travaux, financement et dossier
-            bancaire viendront ensuite. Aucune analyse automatique n’est
-            disponible dans cet aperçu.
+            Rassemblez les pièces, comparez vos hypothèses de travaux et de
+            loyers, simulez le financement et préparez votre dossier PDF. Les
+            points de vigilance restent à faire confirmer.
           </p>
         </div>
       </div>

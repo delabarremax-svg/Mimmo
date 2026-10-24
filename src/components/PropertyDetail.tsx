@@ -107,12 +107,22 @@ export default function PropertyDetail({
     if (saving) return;
     setSaving(true);
     setMessage("Enregistrement en cours…");
-    try { await onSave({ ...property, facts: next }); }
-    catch (e) { setMessage(""); setError(e instanceof Error ? e.message : "Échec. Réessayez."); return; }
-    finally { setSaving(false); }
+    try {
+      await onSave({ ...property, facts: next });
+    } catch (e) {
+      setMessage("");
+      setError(e instanceof Error ? e.message : "Échec. Réessayez.");
+      return;
+    } finally {
+      setSaving(false);
+    }
     setDraft(nextDraft);
     setError("");
-    setMessage(accountsEnabled ? "Modifications enregistrées sur votre compte." : "Modifications enregistrées pour cette session.");
+    setMessage(
+      accountsEnabled
+        ? "Modifications enregistrées sur votre compte."
+        : "Modifications enregistrées pour cette session.",
+    );
   }
   function move(next: number) {
     setStep(next);
@@ -337,13 +347,15 @@ export default function PropertyDetail({
                   <Clock size={16} />
                   <div>
                     <strong>{title}</strong>
-                    <span>À venir · indisponible dans cet aperçu</span>
+                    <span>
+                      À explorer dans le dossier d’investissement ci-dessous
+                    </span>
                   </div>
                 </div>
               ))}
               <p className="future-caption">
-                Aucun score, rendement ou résultat d’analyse n’est calculé
-                actuellement.
+                Les simulations dépendent exclusivement des hypothèses que vous
+                renseignez dans le dossier.
               </p>
             </section>
             <ProvenanceLegend />
@@ -377,80 +389,82 @@ export default function PropertyDetail({
               </button>
             ))}
           </div>
-          <form onSubmit={save}><fieldset className="save-fields" disabled={saving}>
-            <div className="step-description">
-              <h3>{groups[step][0]}</h3>
-              <p>{groups[step][1]}</p>
-            </div>
-            <div className="guided-fields">
-              {groups[step][2].map((key) => (
-                <GuidedFact
-                  key={key}
-                  fieldKey={key}
-                  fact={draft[key]}
-                  url={property.url}
-                  onChange={(change) => update(key, change)}
-                />
-              ))}
-            </div>
-            {error && (
-              <p role="alert" className="error">
-                {error}
-              </p>
-            )}
-            {message && (
-              <p role="status" className="success">
-                <Check size={18} />
-                {message}
-              </p>
-            )}
-            <div className="guided-save">
-              <span>
-                {dirty
-                  ? "Modifications à enregistrer"
-                  : "Vos données restent temporaires"}
-              </span>
-              <button className="primary" type="submit" disabled={saving}>
-                Enregistrer les modifications <Check size={18} />
-              </button>
-            </div>
-            <div className="guide-navigation">
-              {step > 0 ? (
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => move(step - 1)}
-                >
-                  <ArrowLeft size={16} />
-                  Étape précédente
-                </button>
-              ) : (
-                <span />
+          <form onSubmit={save}>
+            <fieldset className="save-fields" disabled={saving}>
+              <div className="step-description">
+                <h3>{groups[step][0]}</h3>
+                <p>{groups[step][1]}</p>
+              </div>
+              <div className="guided-fields">
+                {groups[step][2].map((key) => (
+                  <GuidedFact
+                    key={key}
+                    fieldKey={key}
+                    fact={draft[key]}
+                    url={property.url}
+                    onChange={(change) => update(key, change)}
+                  />
+                ))}
+              </div>
+              {error && (
+                <p role="alert" className="error">
+                  {error}
+                </p>
               )}
-              {step < 2 ? (
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => move(step + 1)}
-                >
-                  Étape suivante <ArrowRight size={16} />
-                </button>
-              ) : (
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => setMode("overview")}
-                >
-                  Voir le tableau de bord <ArrowRight size={16} />
-                </button>
+              {message && (
+                <p role="status" className="success">
+                  <Check size={18} />
+                  {message}
+                </p>
               )}
-            </div>
-            <p className="guide-footnote">
-              Chaque enregistrement concerne l’étape affichée. Les autres
-              modifications restent en brouillon tant que vous êtes sur cette
-              fiche.
-            </p>
-          </fieldset></form>
+              <div className="guided-save">
+                <span>
+                  {dirty
+                    ? "Modifications à enregistrer"
+                    : "Vos données restent temporaires"}
+                </span>
+                <button className="primary" type="submit" disabled={saving}>
+                  Enregistrer les modifications <Check size={18} />
+                </button>
+              </div>
+              <div className="guide-navigation">
+                {step > 0 ? (
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => move(step - 1)}
+                  >
+                    <ArrowLeft size={16} />
+                    Étape précédente
+                  </button>
+                ) : (
+                  <span />
+                )}
+                {step < 2 ? (
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => move(step + 1)}
+                  >
+                    Étape suivante <ArrowRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => setMode("overview")}
+                  >
+                    Voir le tableau de bord <ArrowRight size={16} />
+                  </button>
+                )}
+              </div>
+              <p className="guide-footnote">
+                Chaque enregistrement concerne l’étape affichée. Les autres
+                modifications restent en brouillon tant que vous êtes sur cette
+                fiche.
+              </p>
+            </fieldset>
+          </form>
           <details className="legend-details">
             <summary>Comment lire la provenance des informations ?</summary>
             <ProvenanceLegend />
