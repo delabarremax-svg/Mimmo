@@ -1,0 +1,25 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "mimmo-v1-comptes-privee",
+  "main": "v1-accounts-worker.ts",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "SUPABASE_URL": "https://nfhkfjtyfojiwajvbukk.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_NoPMDaO-WdBQu7EHJrc2eQ_P5CffnqM"
+  },
+  "assets": {
+    "directory": "../dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMITER",
+      "namespace_id": "1005",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+  "observability": { "enabled": false }
+}

@@ -1,0 +1,62 @@
+name: Aperçu V1 privé MIMMO
+on:
+  push:
+    branches: [feat/integrated-v1]
+    paths-ignore: ["docs/**", "README.md"]
+permissions:
+  contents: read
+concurrency:
+  group: mimmo-v1-private-preview
+  cancel-in-progress: false
+jobs:
+  preview:
+    if: github.repository == 'delabarremax-svg/Mimmo' && github.ref == 'refs/heads/feat/integrated-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Contrôler les démonstrations existantes en lecture seule
+        run: |
+          node --input-type=module <<'JS'
+          for (const name of ['mimmo-demo-privee','mimmo-demo-ux']) {
+            const url = `https://${name}.delabarre-max.workers.dev`;
+            const response = await fetch(url, {redirect:'manual', signal:AbortSignal.timeout(15000)});
+            console.log(`${name} : accès anonyme ${response.status}`);
+            if (response.status !== 401) throw new Error('Protection de démonstration existante à vérifier. Aucune modification effectuée.');
+          }
+          JS
+      - run: npm test
+      - run: npm run build:accounts
+      - run: npm run build:v1-demo
+      - run: npx --no-install wrangler deploy --config deploy/wrangler-v1-demo.json --dry-run --outdir work/v1-worker-build
+      - name: Publier uniquement la nouvelle démonstration fictive privée
+        run: node scripts/deploy-private-demo.mjs --v1-preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CONFIRM_FREE_PLAN: "true"
+      - run: npm run build:accounts
+      - name: Préparer l’espace de comptes privé distinct
+        run: node scripts/deploy-v1-accounts.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CONFIRM_FREE_PLAN: "true"
+      - name: Installer Chromium pour le contrôle privé
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Vérifier le parcours privé et le verrou IA UE
+        run: node scripts/check-private-v1.mjs
+        env:
+          MIMMO_TEST_URL: https://mimmo-v1-privee.delabarre-max.workers.dev
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}

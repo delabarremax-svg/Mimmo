@@ -16,3 +16,5 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run build:accounts
+      - run: npm run build:v1-demo

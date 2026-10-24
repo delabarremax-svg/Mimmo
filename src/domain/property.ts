@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Investment } from "./investment";
 export const statuses = {
   missing: "Manquante",
   estimated: "Estimée",
@@ -23,6 +24,8 @@ export type Fact = {
   updatedAt: string;
 };
 export type Property = {
+  photoRef?: { name: string; originalName: string; providedAt: string };
+  investment?: Investment;
   version?: number;
   id: string;
   url: string;

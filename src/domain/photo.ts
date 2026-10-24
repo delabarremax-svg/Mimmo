@@ -1,4 +1,10 @@
-export type PropertyPhoto = { url: string; name: string; providedAt: string };
+export type PropertyPhoto = {
+  url: string;
+  name: string;
+  providedAt: string;
+  file?: File;
+  persisted?: boolean;
+};
 export function validatePhoto(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
     throw new Error(
@@ -21,7 +27,7 @@ export async function readPhoto(file: File): Promise<PropertyPhoto> {
       throw new Error(
         "Cette photo est trop grande. Réduisez sa résolution avant de l’ajouter.",
       );
-    return { url, name: file.name, providedAt: new Date().toISOString() };
+    return { url, name: file.name, providedAt: new Date().toISOString(), file };
   } catch (error) {
     URL.revokeObjectURL(url);
     throw error instanceof Error && error.message.includes("résolution")

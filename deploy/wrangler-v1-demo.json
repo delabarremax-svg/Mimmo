@@ -1,0 +1,22 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "mimmo-v1-privee",
+  "main": "v1-demo-worker.ts",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": { "EU_AI_ENABLED": "false" },
+  "ratelimits": [
+    {
+      "name": "AI_LIMITER",
+      "namespace_id": "1006",
+      "simple": { "limit": 2, "period": 60 }
+    }
+  ],
+  "assets": {
+    "directory": "../dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "observability": { "enabled": false }
+}

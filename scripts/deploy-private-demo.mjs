@@ -1,8 +1,17 @@
 import { spawn } from "node:child_process";
 import { readFile, appendFile } from "node:fs/promises";
 const preview = process.argv.includes("--ux-preview");
-const config = preview ? "deploy/wrangler-ux.json" : "deploy/wrangler.json";
-const workerName = preview ? "mimmo-demo-ux" : "mimmo-demo-privee";
+const v1 = process.argv.includes("--v1-preview");
+const config = v1
+  ? "deploy/wrangler-v1-demo.json"
+  : preview
+    ? "deploy/wrangler-ux.json"
+    : "deploy/wrangler.json";
+const workerName = v1
+  ? "mimmo-v1-privee"
+  : preview
+    ? "mimmo-demo-ux"
+    : "mimmo-demo-privee";
 const password = process.env.DEMO_PASSWORD;
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 if (
@@ -61,6 +70,14 @@ await wrangler(
 const html = await readFile("dist/index.html", "utf8");
 const files = [
   "/",
+  ...(v1
+    ? [
+        "/pdf.worker.mjs",
+        "/ocr/worker.min.js",
+        "/ocr/lang/fra.traineddata.gz",
+        "/ocr/core/tesseract-core-lstm.wasm.js",
+      ]
+    : []),
   ...Array.from(
     html.matchAll(/(?:src|href)="(\/assets\/[^"\s]+)"/g),
     (match) => match[1],
