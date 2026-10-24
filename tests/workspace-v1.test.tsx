@@ -86,3 +86,28 @@ it("keeps dossier drafts across its tabs and shows actual finance results", asyn
   await user.click(screen.getByRole("tab", { name: "Sources & pièces" }));
   expect(screen.getByText("DPE fictif")).toBeInTheDocument();
 });
+it("keeps partially entered financial assumptions across tabs and saves them without invented results", async () => {
+  const user = userEvent.setup(),
+    save = vi.fn().mockResolvedValue(undefined);
+  render(
+    <InvestmentWorkspace
+      property={createProperty("https://example.invalid")}
+      onSave={save}
+      onDirty={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole("tab", { name: "Simulation" }));
+  await user.type(screen.getByLabelText("Prix d’achat (€)"), "200000");
+  await user.click(screen.getByRole("tab", { name: "Travaux" }));
+  await user.click(screen.getByRole("tab", { name: "Simulation" }));
+  expect(screen.getByLabelText("Prix d’achat (€)")).toHaveValue(200000);
+  expect(
+    screen.queryByText("Cash-flow mensuel avant impôts"),
+  ).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: "Enregistrer le dossier" }),
+  );
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(save.mock.calls[0][0].investment.financeDraft.price).toBe("200000");
+  expect(save.mock.calls[0][0].investment.finance).toBeUndefined();
+});

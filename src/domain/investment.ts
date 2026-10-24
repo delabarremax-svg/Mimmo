@@ -68,6 +68,15 @@ export const investmentSchema = z
     works: z.array(workSchema).max(20),
     comparables: z.array(comparableSchema).max(20),
     finance: financeSchema.optional(),
+    financeDraft: z
+      .object(
+        Object.fromEntries(
+          Object.keys(financeSchema.shape).map((k) => [k, z.string().max(40)]),
+        ) as Record<keyof FinanceInput, z.ZodString>,
+      )
+      .partial()
+      .strict()
+      .optional(),
     notes: z.string().max(4000),
   })
   .strict();

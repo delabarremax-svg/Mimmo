@@ -59,6 +59,16 @@ export function reportLines(p: Property): string[] {
     } catch {
       lines.push("Simulation incomplete ou invalide.");
     }
+  } else if (w.financeDraft) {
+    lines.push("Hypotheses partielles a completer : aucun resultat calcule.");
+    for (const [key, value] of Object.entries(w.financeDraft))
+      if (value)
+        lines.push(
+          FINANCE_LABELS[key as keyof typeof FINANCE_LABELS] +
+            " : " +
+            value +
+            " (brouillon non valide)",
+        );
   } else lines.push("Hypotheses non renseignees : aucun resultat calcule.");
   lines.push("", "TRAVAUX - HYPOTHESES UTILISATEUR");
   for (const item of w.works)

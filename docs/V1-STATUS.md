@@ -30,15 +30,19 @@
 
 ## Validation
 
-124 tests réussis localement et dans GitHub, puis ajout d'un test de signalement
-d'échec de révocation lors du changement de mot de passe. Contrôles du fournisseur
-UE, refus d'appel sans approbations et photos privées inclus. TypeScript et
+125 tests réussis localement et dans GitHub, puis ajout d'un test de conservation
+des hypothèses financières partielles entre onglets et lors de la sauvegarde.
+Contrôles du fournisseur UE, refus d'appel sans approbations, photos privées et
+révocation inclus. TypeScript et
 builds comptes/démo réussis ; packaging Wrangler V1 en dry-run réussi.
 Chromium mobile à 320/390/430 px et bureau 1280 px : pas de débordement, pas
 d'erreur JS. PDF téléchargé, relu dans PDF.js et pdftotext. OCR français d'une
 capture fictive contrôlé. Même parcours passé derrière le Worker local HTTPS,
 sa protection Basic et sa CSP (certificat auto-signé accepté uniquement en local).
 Safari iPhone réel reste à tester.
+Le lecteur PDF utilise le build de compatibilité et des polyfills standards dans
+la page et le worker. Un contrôle navigateur désactive volontairement URL.parse
+et Promise.withResolvers : lecture PDF et OCR restent opérationnels.
 
 Mimmo-Paris : migration `v1_private_documents` appliquée après tests PostgreSQL
 locaux ; bucket privé de 10 Mo, RLS propriétaire/projet ; aucun utilisateur,

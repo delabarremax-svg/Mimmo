@@ -16,6 +16,11 @@ try {
     acceptDownloads: true,
     httpCredentials: { username: "mimmo", password: process.env.DEMO_PASSWORD },
   });
+  // Exercise the PDF compatibility build without APIs missing on older Safari.
+  await context.addInitScript(() => {
+    Promise.withResolvers = undefined;
+    URL.parse = undefined;
+  });
   const page = await context.newPage(),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

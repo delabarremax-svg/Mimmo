@@ -1,3 +1,5 @@
+import "core-js/actual/promise/with-resolvers";
+import "core-js/actual/url/parse";
 export type DocumentPage = {
   page: number;
   text: string;
@@ -11,7 +13,7 @@ export async function readDocument(
   if (file.size <= 0 || file.size > 10 * 1024 * 1024)
     throw new Error("Document vide ou supérieur à 10 Mo.");
   if (file.type === "application/pdf") {
-    const pdfjs = await import("pdfjs-dist");
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.mjs";
     const task = pdfjs.getDocument({
       data: new Uint8Array(await file.arrayBuffer()),

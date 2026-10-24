@@ -4,6 +4,7 @@ import { fields, validateFact } from "../domain/property";
 import {
   emptyInvestment,
   FINANCE_LABELS,
+  financeSchema,
   investmentSchema,
   worksBudget,
   marketRange,
@@ -69,6 +70,20 @@ export default function InvestmentWorkspace({
   const [draft, setDraft] = useState<Investment>(() =>
     structuredClone(p.investment || emptyInvestment()),
   );
+  const [financeFields, setFinanceFields] = useState<
+    Partial<Record<keyof FinanceInput, string>>
+  >(
+    () =>
+      p.investment?.financeDraft ||
+      Object.fromEntries(
+        (Object.keys(FINANCE_LABELS) as (keyof FinanceInput)[]).map((k) => [
+          k,
+          p.investment?.finance
+            ? String(p.investment.finance[k] / (moneyFields.has(k) ? 100 : 1))
+            : "",
+        ]),
+      ),
+  );
   const [tab, setTab] = useState<Tab>("sources"),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
@@ -92,6 +107,30 @@ export default function InvestmentWorkspace({
     onDirty(true);
     setMessage("Brouillon non enregistré");
     setError("");
+  }
+  function changeFinance(key: keyof FinanceInput, value: string) {
+    const fields = { ...financeFields, [key]: value };
+    setFinanceFields(fields);
+    const keys = Object.keys(FINANCE_LABELS) as (keyof FinanceInput)[];
+    const complete = keys.every(
+      (k) => fields[k] !== undefined && fields[k] !== "",
+    );
+    const values = complete
+      ? Object.fromEntries(
+          keys.map((k) => [
+            k,
+            moneyFields.has(k)
+              ? Math.round(Number(fields[k]) * 100)
+              : Number(fields[k]),
+          ]),
+        )
+      : undefined;
+    const parsed = financeSchema.safeParse(values);
+    change({
+      ...draft,
+      financeDraft: fields,
+      finance: parsed.success ? parsed.data : undefined,
+    });
   }
   async function save(next = draft) {
     if (saving) return;
@@ -838,27 +877,27 @@ export default function InvestmentWorkspace({
               montants sont avant impôts. Renseignez explicitement 0 lorsqu’un
               poste est nul.
             </p>
+            {result && (
+              <div
+                className="finance-live"
+                aria-live="polite"
+                data-negative={result.monthlyCashFlow < 0}
+              >
+                <div>
+                  <small>Cash-flow avant impôt</small>
+                  <strong>{euros(result.monthlyCashFlow)} / mois</strong>
+                </div>
+                <div>
+                  <small>Crédit + assurance</small>
+                  <strong>
+                    {euros(result.monthlyPayment + result.monthlyInsurance)} /
+                    mois
+                  </strong>
+                </div>
+              </div>
+            )}
             <form
               className="panel investment-form"
-              onChange={(e) => {
-                const f = data(e.currentTarget);
-                const keys = Object.keys(
-                  FINANCE_LABELS,
-                ) as (keyof FinanceInput)[];
-                if (keys.some((k) => f[k] === "")) {
-                  change({ ...draft, finance: undefined });
-                  return;
-                }
-                const values = Object.fromEntries(
-                  keys.map((k) => [
-                    k,
-                    moneyFields.has(k)
-                      ? Math.round(numeric(f[k]) * 100)
-                      : numeric(f[k]),
-                  ]),
-                ) as FinanceInput;
-                change({ ...draft, finance: values });
-              }}
               onSubmit={(e) => {
                 e.preventDefault();
                 save();
@@ -882,11 +921,8 @@ export default function InvestmentWorkspace({
                         }
                         step={k === "years" ? 1 : "0.01"}
                         required
-                        defaultValue={
-                          draft.finance
-                            ? draft.finance[k] / (moneyFields.has(k) ? 100 : 1)
-                            : undefined
-                        }
+                        value={financeFields[k] ?? ""}
+                        onChange={(e) => changeFinance(k, e.target.value)}
                       />
                     </label>
                   ),
