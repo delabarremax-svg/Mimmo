@@ -28,3 +28,6 @@ jobs:
         env:
           MIMMO_TEST_URL: https://mimmo-v1-privee.delabarre-max.workers.dev
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+      - run: npm run build:v1-demo
+      - name: Vérifier OCR et intégration des champs en navigateur local
+        run: node scripts/check-local-import.mjs

@@ -26,6 +26,8 @@ it("rejects non-EU injected providers even when enabled", () => {
   expect(
     configuredEuAi({
       EU_AI_ENABLED: "true",
+      EU_AI_PROCESSING_APPROVED: "true",
+      EU_AI_BUDGET_APPROVED: "true",
       EU_AI: { processingRegion: "global", model: "test", run: vi.fn() } as any,
     }),
   ).toBeUndefined();
