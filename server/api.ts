@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { investmentSchema } from "../src/domain/investment";
 import { extractAuthorizedListing } from "./listing";
-import { runAnalysis } from "./analysis";
+import { runAnalysis, AnalysisError } from "./analysis";
 import type { EuAiEnvironment } from "./eu-ai";
 import {
   fields,
@@ -413,13 +413,19 @@ export async function api(
         return json({ error: "Trop de demandes." }, 429);
       try {
         response = json(await runAnalysis(await body(), env));
-      } catch {
+      } catch (e) {
+        const code = e instanceof AnalysisError ? e.code : "invalid_request";
         response = json(
           {
             error:
               "Analyse IA indisponible ou réponse non vérifiable. Aucun résultat ajouté.",
+            code,
           },
-          422,
+          code === "eu_ai_not_configured" || code === "provider_unavailable"
+            ? 503
+            : code === "quota"
+              ? 429
+              : 422,
         );
       }
     } else if (path === "/api/extract" && request.method === "POST") {
