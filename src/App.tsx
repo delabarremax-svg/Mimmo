@@ -24,7 +24,10 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState("");
   useEffect(() => {
     if (!accountsEnabled) return;
-    if (new URLSearchParams(location.search).get("recovery") === "1") {
+    if (
+      new URLSearchParams(location.search).get("recovery") === "1" ||
+      new URLSearchParams(location.search).has("auth_notice")
+    ) {
       setLoading(false);
       return;
     }

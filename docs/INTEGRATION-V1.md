@@ -74,5 +74,7 @@ emails des membres existants de l'organisation. Ne pas créer de faux comptes ni
 inviter de clients comme administrateurs pour contourner cette restriction.
 Un second compte réel et l'ouverture externe requièrent une solution email adaptée.
 
-Les seuls réglages immédiats à effectuer par le fondateur sont dans
+Les réglages email utilisent désormais les modèles Supabase par défaut : aucun
+SMTP ni modification de modèle nécessaire pour le test privé. Le seul écran
+d’adresses de retour à vérifier et le parcours de recette sont dans
 [ACTIVATION-COMPTES-V1.md](ACTIVATION-COMPTES-V1.md). Aucun SQL ni secret en chat.

@@ -20,7 +20,22 @@ const env: Environment = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
-  mock.createClient.mockReturnValue({ auth: mock });
+  mock.createClient.mockImplementation((_url, _key, options) => {
+    if (options.auth.flowType === "pkce") {
+      return {
+        auth: {
+          resetPasswordForEmail: async (...args: unknown[]) => {
+            options.auth.storage.setItem(
+              "mimmo-email-code-verifier",
+              JSON.stringify("synthetic-verifier/recovery"),
+            );
+            return mock.resetPasswordForEmail(...args);
+          },
+        },
+      };
+    }
+    return { auth: mock };
+  });
 });
 function post(path: string, body: unknown, cookie = "") {
   return new Request("https://mimmo.test/api/" + path, {
