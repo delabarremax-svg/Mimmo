@@ -35,3 +35,43 @@ it("fails closed without configured private-demo secret", async () => {
   });
   expect(r.status).toBe(503);
 });
+
+it("serves root and auth-notice entry with exact HTML routing and preserves protected example paths", async () => {
+  const seen: string[] = [];
+  const env = {
+    DEMO_PASSWORD: password,
+    ASSETS: {
+      fetch: vi.fn(async (request: Request) => {
+        const url = new URL(request.url);
+        expect(request.headers.has("Authorization")).toBe(false);
+        seen.push(url.pathname + url.search);
+        const exists = [
+          "/index.html",
+          "/import-examples/appartement-fictif.html",
+        ].includes(url.pathname);
+        return new Response(exists ? "exact asset" : "missing", {
+          status: exists ? 200 : 404,
+        });
+      }),
+    },
+  } as any;
+  for (const path of [
+    "/",
+    "/?auth_notice=email_link_invalid",
+    "/import-examples/appartement-fictif.html",
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://mimmo.test" + path, {
+        headers: { Authorization: "Basic " + btoa("mimmo:" + password) },
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toContain("no-store");
+  }
+  expect(seen).toEqual([
+    "/index.html",
+    "/index.html?auth_notice=email_link_invalid",
+    "/import-examples/appartement-fictif.html",
+  ]);
+});

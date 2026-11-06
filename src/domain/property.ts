@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListingRecord } from "./listing-import";
 import type { Investment } from "./investment";
 export const statuses = {
   missing: "Manquante",
@@ -24,6 +25,7 @@ export type Fact = {
   updatedAt: string;
 };
 export type Property = {
+  listingImport?: ListingRecord;
   photoRef?: { name: string; originalName: string; providedAt: string };
   investment?: Investment;
   version?: number;

@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { investmentSchema } from "../src/domain/investment";
-import { extractAuthorizedListing } from "./listing";
+import { extractAuthorizedListing, importListing } from "./listing";
+import { listingRecordSchema } from "../src/domain/listing-import";
 import { runAnalysis, AnalysisError } from "./analysis";
 import type { EuAiEnvironment } from "./eu-ai";
 import {
@@ -93,6 +94,7 @@ const propertySchema = z
       .strict()
       .optional(),
     investment: investmentSchema.optional(),
+    listingImport: listingRecordSchema.optional(),
     id: z.uuid(),
     url: z.string().max(8000),
     createdAt: z.iso.datetime(),
@@ -620,6 +622,22 @@ export async function api(
               : 422,
         );
       }
+    } else if (path === "/api/import-listing" && request.method === "POST") {
+      if (!(await env.AUTH_LIMITER.limit({ key: "import:" + user.id })).success)
+        return json(
+          { error: "Trop de demandes. Réessayez dans une minute." },
+          429,
+        );
+      const { url: source } = z
+        .object({ url: z.url({ protocol: /^https?$/ }).max(8000) })
+        .strict()
+        .parse(await body());
+      response = json(
+        await importListing(source, env.LISTING_ALLOWED_HOSTS || "", {
+          origin: url.origin,
+          assets: env.ASSETS,
+        }),
+      );
     } else if (path === "/api/extract" && request.method === "POST") {
       if (
         !(
@@ -632,7 +650,7 @@ export async function api(
       )
         return json({ error: "Trop de demandes." }, 429);
       const { url: source } = z
-        .object({ url: z.url({ protocol: /^https:$/ }).max(8000) })
+        .object({ url: z.url({ protocol: /^https$/ }).max(8000) })
         .strict()
         .parse(await body());
       try {

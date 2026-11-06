@@ -1,3 +1,6 @@
+import TranscriptArchive from "./components/TranscriptArchive";
+import ListingImport from "./components/ListingImport";
+import { ImportedMedia } from "./components/ListingImport";
 import Account from "./components/Account";
 import { accountsEnabled, api, persist } from "./services/account";
 import { useEffect, useRef, useState } from "react";
@@ -358,6 +361,34 @@ export default function App() {
                 onAdd={() => navigate("import")}
                 onOpen={open}
               />
+            ) : page === "import" &&
+              (accountsEnabled || import.meta.env.MODE === "v1demo") ? (
+              <ListingImport
+                onCancel={() => navigate("list")}
+                onDirty={setDirty}
+                onSave={async (draft) => {
+                  setBusy(true);
+                  try {
+                    const saved = accountsEnabled
+                      ? await persist(draft)
+                      : draft;
+                    setProperties((prev) => [saved, ...prev]);
+                    setActive(saved.id);
+                    setDirty(false);
+                    setInitialMode("overview");
+                    setDetailView("facts");
+                    setPage("detail");
+                    setError("");
+                    setSyncMessage(
+                      accountsEnabled
+                        ? "Bien importé et enregistré dans votre compte."
+                        : "Fiche conservée pour cette session uniquement.",
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
             ) : page === "import" ? (
               <section className="narrow">
                 <button className="back" onClick={() => navigate("list")}>
@@ -411,6 +442,45 @@ export default function App() {
               </section>
             ) : property ? (
               <div className="detail-panel" hidden={detailView !== "facts"}>
+                {property.listingImport && (
+                  <details className="panel">
+                    <summary>
+                      Informations et photos de l’import ·{" "}
+                      {property.listingImport.platform}
+                    </summary>
+                    {property.listingImport.platform ===
+                      "Exemple MIMMO fictif" && (
+                      <p className="notice">
+                        ANNONCE FICTIVE DE TEST — aucun bien réel proposé à la
+                        vente.
+                      </p>
+                    )}
+                    <p>
+                      Sources conservées le{" "}
+                      {new Date(
+                        property.listingImport.obtainedAt,
+                      ).toLocaleDateString("fr-FR")}
+                      . Les valeurs extraites restent à contrôler.
+                    </p>
+                    {property.investment?.observations
+                      .filter((o) => o.kind === "dpe" || o.kind === "listing")
+                      .map((o) => (
+                        <p key={o.id}>
+                          <strong>
+                            {o.label} : {o.value}
+                          </strong>
+                          <br />
+                          {o.source}
+                        </p>
+                      ))}
+                    {property.listingImport.transcripts && (
+                      <TranscriptArchive
+                        archive={property.listingImport.transcripts}
+                      />
+                    )}
+                    <ImportedMedia photos={property.listingImport.photos} />
+                  </details>
+                )}
                 <PropertyDetail
                   key={property.id}
                   property={property}

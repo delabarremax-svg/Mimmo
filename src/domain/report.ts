@@ -11,6 +11,9 @@ export function reportLines(p: Property): string[] {
   const w = p.investment || emptyInvestment();
   const lines = [
     "MIMMO - Dossier de preparation bancaire",
+    ...(p.listingImport?.platform === "Exemple MIMMO fictif"
+      ? ["DONNEES FICTIVES DE TEST - AUCUN BIEN REEL A LA VENTE"]
+      : []),
     new Date().toLocaleDateString("fr-FR"),
     p.facts.title.value || "Projet sans nom",
     "Source annonce : " + p.url,

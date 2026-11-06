@@ -32,6 +32,7 @@ it("extracts structured data only from an authorized source", async () => {
     .mockResolvedValueOnce(
       new Response(
         '<script type="application/ld+json">{"@type":"Offer","price":200000,"priceCurrency":"EUR"}</script>',
+        { headers: { "Content-Type": "text/html" } },
       ),
     );
   vi.stubGlobal("fetch", fn);
