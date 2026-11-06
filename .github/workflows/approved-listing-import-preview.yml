@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 607975b6798e3c890dc85862a3f3546bd18fa827
+          ref: ddc21af22692f9a5fdb796939ad466c64b2fc6e7
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -159,7 +159,7 @@ jobs:
               if(new URL(page.url()).searchParams.has('code'))throw new Error('Code non retiré de l’adresse de retour.');
             }
             if(errors.length||mutations)throw new Error('Erreur JavaScript ou tentative d’écriture.');
-            console.log('Révision PR 7 (607975b) publiée vérifiée ; interface comptes 320/390/430px et retours emails standard validés. Aucun email, utilisateur ou bien créé.');
+            console.log('Révision PR 7 (ddc21af) publiée vérifiée ; interface comptes 320/390/430px et retours emails standard validés. Aucun email, utilisateur ou bien créé.');
           }finally{await browser.close();}
           JS
       - name: Vérifier les exemples et moteurs OCR publiés sans session utilisateur
