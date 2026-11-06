@@ -1,8 +1,23 @@
-name: Aperçu V1 privé MIMMO
+name: Aperçu V1 privé MIMMO (autorisation manuelle)
 on:
-  push:
-    branches: [feat/integrated-v1]
-    paths-ignore: ["docs/**", "README.md"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Espace privé à mettre à jour
+        type: choice
+        options: [accounts, fictitious-demo]
+        default: accounts
+        required: true
+      confirm_private_preview:
+        description: Le fondateur autorise ce déploiement privé de la révision sélectionnée
+        type: boolean
+        default: false
+        required: true
+      confirm_free_plan:
+        description: Workers Free confirmé, aucune option payante
+        type: boolean
+        default: false
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -10,7 +25,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   preview:
-    if: github.repository == 'delabarremax-svg/Mimmo' && github.ref == 'refs/heads/feat/integrated-v1'
+    if: >-
+      github.repository == 'delabarremax-svg/Mimmo' &&
+      contains(fromJSON('["refs/heads/feat/v1-completion-audit","refs/heads/feat/integrated-v1","refs/heads/main"]'), github.ref) &&
+      inputs.confirm_private_preview == true && inputs.confirm_free_plan == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -18,45 +36,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Contrôler les démonstrations existantes en lecture seule
-        run: |
-          node --input-type=module <<'JS'
-          for (const name of ['mimmo-demo-privee','mimmo-demo-ux']) {
-            const url = `https://${name}.delabarre-max.workers.dev`;
-            const response = await fetch(url, {redirect:'manual', signal:AbortSignal.timeout(15000)});
-            console.log(`${name} : accès anonyme ${response.status}`);
-            if (response.status !== 401) throw new Error('Protection de démonstration existante à vérifier. Aucune modification effectuée.');
-          }
-          JS
+      - run: npm audit --audit-level=high
       - run: npm test
-      - run: npm run build:accounts
-      - run: npm run build:v1-demo
-      - run: npx --no-install wrangler deploy --config deploy/wrangler-v1-demo.json --dry-run --outdir work/v1-worker-build
-      - name: Publier uniquement la nouvelle démonstration fictive privée
-        run: node scripts/deploy-private-demo.mjs --v1-preview
+      - name: Contrôler les démonstrations existantes en lecture seule
+        run: node scripts/audit-live-v1.mjs
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
-          CONFIRM_FREE_PLAN: "true"
-      - run: npm run build:accounts
-      - name: Préparer l’espace de comptes privé distinct
+      - name: Compiler l’espace de comptes
+        if: inputs.target == 'accounts'
+        run: npm run build:accounts
+      - name: Compiler la démonstration fictive distincte
+        if: inputs.target == 'fictitious-demo'
+        run: npm run build:v1-demo
+      - name: Mettre à jour uniquement l’espace de comptes privé autorisé
+        if: inputs.target == 'accounts'
         run: node scripts/deploy-v1-accounts.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
           CONFIRM_FREE_PLAN: "true"
-      - name: Installer Chromium pour le contrôle privé
-        run: npx --no-install playwright install --with-deps chromium
-      - name: Vérifier le parcours privé et le verrou IA UE
-        run: node scripts/check-private-v1.mjs
+      - name: Mettre à jour uniquement la démonstration fictive autorisée
+        if: inputs.target == 'fictitious-demo'
+        run: node scripts/deploy-private-demo.mjs --v1-preview
         env:
-          MIMMO_TEST_URL: https://mimmo-v1-privee.delabarre-max.workers.dev
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CONFIRM_FREE_PLAN: "true"

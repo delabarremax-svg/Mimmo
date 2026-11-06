@@ -35,17 +35,19 @@ Enregistrer chaque modèle. Ces expressions sont des paramètres de modèle, pas
 des clés secrètes. Elles envoient la confirmation au serveur MIMMO sans transmettre
 de jeton de session au JavaScript ou à l'URL applicative.
 
-## 3. Sécurité du compte
+## 3. Sécurité du compte (contrôle technique, sans nouvelle offre)
 
 Dans Authentication, conserver **Email/password** et **Confirm email** activés.
-Régler l'expiration des JWT à **900 secondes** et le minimum du mot de passe à
-**12 caractères** dans les réglages correspondants. Aucun abonnement à activer.
+Le code exige déjà un mot de passe de **12 caractères minimum**. Le contrôle
+technique de durée des sessions sera repris lors du test réel ; la cible est
+**900 secondes** pour les JWT. Aucun abonnement à activer.
 
 ## 4. Test produit depuis Safari
 
 Ouvrir https://mimmo-v1-comptes-privee.delabarre-max.workers.dev avec la même
 protection de démonstration (identifiant `mimmo`, mot de passe déjà choisi).
-Créer son propre compte, confirmer l'email, se connecter, créer un bien et
+Pour le premier essai, utiliser l’email déjà membre de l’organisation Mimmo.
+Créer son propre compte, confirmer l’email, se connecter, créer un bien et
 enregistrer des informations et une photo. Fermer et rouvrir Safari pour
 vérifier la reprise. Puis tester le lien « Mot de passe oublié ? ».
 
@@ -60,3 +62,12 @@ aucune souscription ni dépense n'est autorisée automatiquement.
 L'IA reste désactivée tant qu'un fournisseur ne garantit pas le traitement dans
 l'Union européenne et que son accès/budget n'est pas approuvé. Les lectures PDF
 et OCR restent locales. Le parcours bancaire n'est pas une offre de prêt.
+
+## État de la nouvelle révision
+
+L’aperçu existant ne contient pas encore les corrections de PR 6. Les réglages
+ci-dessus ciblent ses routes déjà déployées et peuvent être préparés maintenant.
+La publication privée de la nouvelle révision attend l’accord du fondateur ;
+il n’est pas nécessaire de fusionner pour poursuivre le développement.
+Après les deux écrans enregistrés, signaler seulement « réglages emails faits ».
+Ne transmettre ni lien reçu par email, ni jeton, ni mot de passe.
