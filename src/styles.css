@@ -2204,3 +2204,176 @@ button:disabled {
     gap: 14px;
   }
 }
+
+/* Listing import: real stages, visible provenance and one private save. */
+.import-steps {
+  display: flex;
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  flex-wrap: wrap;
+  margin: 1.3rem 0;
+}
+.import-steps li {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line, #dce5df);
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+.import-steps [aria-current="step"] {
+  background: #164b3b;
+  color: white;
+}
+.listing-import .panel {
+  margin-bottom: 1.2rem;
+}
+.import-platform {
+  font-weight: 700;
+  color: #164b3b;
+}
+.import-fallback {
+  margin: 1rem 0;
+  background: #fff9ee;
+}
+.import-rescue > summary,
+.import-review summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.import-rescue textarea,
+.import-field input,
+.import-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.import-field {
+  padding: 1.1rem 0;
+  border-bottom: 1px solid #e4e9e4;
+  display: grid;
+  gap: 0.55rem;
+}
+.import-field > label {
+  font-weight: 700;
+}
+.import-badge {
+  justify-self: start;
+  border-radius: 12px;
+  padding: 0.25rem 0.55rem;
+  background: #edf3ed;
+  font-size: 0.75rem;
+  color: #315b46;
+}
+.import-badge.conflict {
+  background: #fff0da;
+  color: #744414;
+}
+.import-proof {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.import-proof blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.7rem;
+  border-left: 3px solid #b8ccbd;
+  white-space: pre-wrap;
+}
+.import-alternatives {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.import-alternatives button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.import-media {
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.import-media a {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+  color: #18503e;
+}
+.import-save {
+  display: flex;
+  gap: 0.7rem;
+  flex-direction: column;
+  position: sticky;
+  bottom: 0.5rem;
+  padding: 0.8rem;
+  background: #fafcf8;
+  border-radius: 16px;
+  border: 1px solid #dae4d9;
+  z-index: 2;
+}
+.import-review progress,
+.listing-import progress {
+  width: 100%;
+}
+.listing-import .notice > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.listing-import details[open] > summary {
+  margin-bottom: 0.8rem;
+}
+.listing-import {
+  padding-bottom: 2rem;
+}
+.listing-import input:not([type="file"]),
+.listing-import textarea {
+  font: inherit;
+  font-size: 16px;
+  min-height: 46px;
+  padding: 11px 12px;
+  border: 1px solid #cdd8cf;
+  border-radius: 10px;
+  color: #18372c;
+  background: #fff;
+  min-width: 0;
+}
+.listing-import textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+.listing-import .url-input input {
+  border: 0;
+  padding-left: 0;
+  background: transparent;
+}
+.listing-import .panel p {
+  margin: 0.45rem 0;
+  line-height: 1.6;
+}
+.listing-import .import-alternatives .back {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #dae4d9;
+  border-radius: 10px;
+  min-height: 40px;
+}
+.listing-import .investment-form {
+  gap: 12px;
+}
+.listing-import .document-text {
+  font-size: 13px;
+}
+.listing-import progress {
+  accent-color: #1b5a40;
+}
+.listing-import .import-rescue > .panel {
+  padding: 16px;
+  margin-top: 12px;
+}
+.listing-import .import-save .back {
+  margin: 0;
+  justify-content: center;
+}
+.listing-import .import-field > label {
+  margin-bottom: 0;
+}
+.listing-import .import-review h2 {
+  font-size: 1.35rem;
+}

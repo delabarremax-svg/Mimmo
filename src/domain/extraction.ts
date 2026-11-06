@@ -14,6 +14,7 @@ export function extractListingText(text: string): Candidate[] {
     for (const m of text.matchAll(re)) {
       const start = m.index!,
         end = start + m[0].length;
+      if (start > 0 && /[\d.,]/.test(text[start - 1])) continue;
       // A monthly rent, fee or terrace size is not the purchase price or living area.
       // Keep ambiguous eligible amounts as separate proposals, never silently pick one.
       const before =

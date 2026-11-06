@@ -1,0 +1,37 @@
+name: Recette import sans publication
+on:
+  push:
+    branches: [feat/listing-import]
+permissions:
+  contents: read
+jobs:
+  local-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:accounts
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: node scripts/check-listing-import.mjs
+  owned-http-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install esbuild scripts/check-listing-network.ts --bundle --platform=node --format=esm --outfile=work/check-listing-network.mjs
+      - name: HTTP réel local sur nos annonces fictives autorisées et un refus 403
+        run: node work/check-listing-network.mjs
