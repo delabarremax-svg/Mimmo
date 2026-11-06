@@ -1,9 +1,11 @@
 # Import d’annonces V1 — 6 novembre 2026
 
-Branche `feat/listing-import`, basée sur la PR 6. Les comptes réels, confirmation,
+Branche `feat/listing-import`, PR 7 basée sur la PR 6.
+Aperçu privé des comptes mis à jour avec autorisation explicite :
+[publication et recette iPhone](DEPLOIEMENT-IMPORT-PRIVE-2026-11-06.md). Les comptes réels, confirmation,
 sauvegarde et reconnexion ont été validés sur iPhone par le fondateur avant cette
-mission. Cette modification ne fusionne aucune PR, ne déploie rien et ne modifie
-aucune donnée de Paris ou Londres.
+mission. Aucune PR fusionnée ; seule la publication privée des comptes a été
+autorisée et réalisée. Aucune donnée de Paris ou Londres modifiée pendant cette opération.
 
 ## Trois parcours intégrés
 
@@ -37,8 +39,8 @@ hypothèses cachées. Les valeurs modifiées sont distinguées comme personnelle
 - `example.css` et `illustration-fictive.svg` appartiennent à ce jeu de test.
 
 La lecture automatisée est explicitement autorisée dans chaque page. Ces fichiers
-sont servis dans notre environnement local. Ils ne seront accessibles dans
-l’aperçu privé qu’après autorisation de sa mise à jour.
+sont servis dans notre environnement local et dans l’aperçu privé des comptes,
+mis à jour avec autorisation le 6 novembre. Leur accès privé a été vérifié.
 
 Le lecteur n’accorde l’exception interne qu’à ces deux chemins exacts sur
 **l’origine de la requête MIMMO**, sans identifiants, query ni fragment. Il utilise
@@ -50,7 +52,7 @@ Dans l’espace comptes, « Essayer l’appartement fictif MIMMO » ou « Essaye
 maison fictive MIMMO » renseigne le lien. Le statut fictif reste dans le dossier
 et dans le PDF bancaire, même si l’utilisateur renomme son projet.
 
-Après une publication privée autorisée, les chemins seront :
+Dans l’aperçu privé des comptes, les chemins sont :
 
 - `/import-examples/appartement-fictif.html`
 - `/import-examples/maison-fictive.html`
@@ -138,7 +140,7 @@ proposent une capture ou un fichier plus court. Pas de confiance calibrée inven
   simulée d’API et reprise ; capture et PDF scanné lus par le vrai moteur OCR,
   sources fichier/page conservées. Aucune requête externe ni écriture distante.
 - Les tests Safari iPhone et l’enregistrement réel de ces nouvelles métadonnées
-  dans le compte attendent une publication privée autorisée.
+  dans le compte attendent la recette personnelle sur l’aperçu désormais publié.
 
 Commandes : `npm test`, `npm run build:accounts`,
 `node scripts/check-listing-import.mjs` (après build comptes),
@@ -147,7 +149,7 @@ La CI effectue les tests et builds sans publier.
 
 ## Proposition de recette iPhone
 
-Après accord de déploiement privé : se connecter au compte existant, essayer les
+Dans l’aperçu privé publié : se connecter au compte existant, essayer les
 exemples fictifs depuis « Ajouter un bien », vérifier prix/surface/DPE/charges,
 corriger une valeur et enregistrer. Tester ensuite une URL de portail : repli
 annoncé, capture ou PDF, remplissage automatique et relecture. Se déconnecter puis
