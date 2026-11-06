@@ -1,0 +1,24 @@
+name: Contrôle ressources import déployées sans modification
+on:
+  push:
+    branches: [ops/approved-listing-import-20261106]
+    paths: [.github/workflows/check-listing-assets.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Contrôler réponses des ressources sans consulter de compte
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+        run: |
+          node --input-type=module <<'JS'
+          const origin='https://mimmo-v1-comptes-privee.delabarre-max.workers.dev';
+          const Authorization='Basic '+Buffer.from('mimmo:'+process.env.DEMO_PASSWORD).toString('base64');
+          for(const path of ['/import-examples/appartement-fictif.html','/import-examples/appartement-fictif','/import-examples/maison-fictive.html','/import-examples/example.css','/import-examples/illustration-fictive.svg','/pdf.worker.mjs','/ocr/worker.min.js','/ocr/lang/fra.traineddata.gz']){
+            const r=await fetch(origin+path,{headers:{Authorization},redirect:'manual',signal:AbortSignal.timeout(20000)});
+            console.log(JSON.stringify({path,status:r.status,location:r.headers.get('Location'),cache:r.headers.get('Cache-Control'),type:r.headers.get('Content-Type')}));
+            await r.body?.cancel();
+          }
+          JS
