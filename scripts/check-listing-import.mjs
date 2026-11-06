@@ -232,10 +232,23 @@ try {
     ),
   );
   await writeFile("work/import-scan-fictif.pdf", Buffer.concat(chunks));
+  await fixture.setContent(
+    '<body style="font:30px Arial;background:white;padding:25px"><p>12:34</p><h1>Appartement à Lille</h1><p>Prix 155000 euros</p><p>Surface habitable 51 m²</p><p>Taxe foncière 1200 euros / an</p><p>Loyer 800 euros / mois</p><p>Une pièce lumineuse avec une cuisine indépendante.</p><p>Contacter</p></body>',
+  );
+  await fixture.screenshot({ path: "work/import-capture-2.png" });
+  await fixture.setContent(
+    '<body style="font:30px Arial;background:white;padding:25px"><p>98%</p><h1>Appartement à Lille</h1><p>Surface Carrez 49,5 m²</p><p>Surface au sol 55 m²</p><p>Charges 90 euros par mois</p><p>Une pièce lumineuse avec une cuisine indépendante.</p><p>Appartement sans ascenseur avec un balcon.</p></body>',
+  );
+  await fixture.screenshot({ path: "work/import-capture-3.png" });
   await fixture.close();
   await page
     .getByLabel("Lire un PDF ou une capture", { exact: true })
-    .setInputFiles("work/import-capture-fictive.png");
+    .setInputFiles([
+      "work/import-capture-fictive.png",
+      "work/import-capture-2.png",
+      "work/import-capture-3.png",
+    ]);
+  await page.getByRole("button", { name: "Analyser les 3 fichiers" }).click();
   await page
     .getByText("Lecture terminée.", { exact: false })
     .waitFor({ timeout: 120000 });
@@ -244,6 +257,51 @@ try {
     "155000"
   )
     throw new Error("OCR réel non intégré");
+  if (await page.getByText("Contradiction à examiner", { exact: true }).count())
+    throw new Error("Contradiction artificielle sur captures chevauchantes.");
+  await writeFile(
+    "work/batch-ocr-debug.json",
+    JSON.stringify(
+      await page.locator(".document-text").allTextContents(),
+      null,
+      2,
+    ),
+  );
+  // Real OCR can confuse the square-metre glyph. Require confirmation instead of inventing certainty.
+  const area = await page
+    .getByLabel("Surface (m²)", { exact: true })
+    .inputValue();
+  if (!area)
+    await page
+      .getByLabel("Proposition pour Surface (m²)", { exact: true })
+      .selectOption("51");
+  else if (area !== "51")
+    throw new Error("Mauvaise surface habitable proposée.");
+  if (
+    !(
+      await page.getByLabel("Taxe foncière", { exact: true }).inputValue()
+    ).includes("1200")
+  )
+    throw new Error("Taxe non distinguée.");
+  if (
+    !(await page.getByLabel("Loyer", { exact: true }).inputValue()).includes(
+      "800",
+    )
+  )
+    throw new Error("Loyer non distingué.");
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (
+      !(await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ))
+    )
+      throw new Error("Débordement du lot mobile.");
+  }
+  await page.screenshot({
+    path: "work/import-batch-mobile.png",
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "Enregistrer dans mes biens" })
     .click();
@@ -257,6 +315,21 @@ try {
     )
   )
     throw new Error("Provenance OCR manquante");
+  const archive = stored[1].listingImport.transcripts;
+  if (archive?.pages !== 3)
+    throw new Error("Textes des trois captures non sauvegardés.");
+  const bytes = Uint8Array.from(atob(archive.data), (c) => c.charCodeAt(0));
+  const texts = JSON.parse(
+    await new Response(
+      new Response(bytes).body.pipeThrough(new DecompressionStream("gzip")),
+    ).text(),
+  );
+  if (
+    !texts.some(
+      (p) => p.source === "import-capture-3.png" && p.text.includes("Carrez"),
+    )
+  )
+    throw new Error("Texte brut ou provenance perdu.");
   await page
     .getByRole("button", { name: /Mes biens/ })
     .first()
@@ -277,6 +350,7 @@ try {
   await page
     .getByLabel("Lire un PDF ou une capture", { exact: true })
     .setInputFiles("work/import-scan-fictif.pdf");
+  await page.getByRole("button", { name: "Analyser le fichier" }).click();
   await page
     .getByText("Lecture terminée.", { exact: false })
     .waitFor({ timeout: 120000 });

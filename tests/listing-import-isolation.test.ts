@@ -1,4 +1,8 @@
 // @vitest-environment node
+import {
+  packTranscripts,
+  unpackTranscripts,
+} from "../src/services/capture-transcripts";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { it, expect } from "vitest";
@@ -31,7 +35,18 @@ it("keeps imported evidence and DPE private through the real PostgreSQL RPC and 
         url,
         { title: "FICTIF privé", price: "155000", dpe: "D" },
         evidence,
-        blankReport(url),
+        {
+          ...blankReport(url),
+          transcripts: await packTranscripts([
+            {
+              source: "capture-synthetique.png",
+              page: 1,
+              text: "Prix 155000 €\nTexte brut privé synthétique",
+              method: "ocr",
+              confidence: 90,
+            },
+          ]),
+        },
       );
     await db.exec("begin; set local role authenticated;");
     await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
@@ -71,6 +86,12 @@ it("keeps imported evidence and DPE private through the real PostgreSQL RPC and 
       )
     ).rows;
     expect(rows[0].payload.facts.price.value).toBe("155000");
+    expect(
+      (await unpackTranscripts(rows[0].payload.listingImport!.transcripts!))[0],
+    ).toMatchObject({
+      source: "capture-synthetique.png",
+      text: "Prix 155000 €\nTexte brut privé synthétique",
+    });
     expect(rows[0].payload.listingImport?.evidence[0].source).toBe(url);
     expect(rows[0].payload.investment?.observations[0]).toMatchObject({
       label: "DPE",

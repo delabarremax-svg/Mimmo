@@ -7,9 +7,15 @@ export type DocumentPage = {
   confidence?: number;
   issue?: string;
 };
+export type DocumentSession = {
+  aborted?: boolean;
+  worker?: Awaited<ReturnType<(typeof import("tesseract.js"))["createWorker"]>>;
+  onProgress?: (s: string) => void;
+};
 export async function readDocument(
   file: File,
   onProgress: (s: string) => void,
+  session?: DocumentSession,
 ): Promise<DocumentPage[]> {
   if (file.size <= 0 || file.size > 10 * 1024 * 1024)
     throw new Error("Document vide ou supérieur à 10 Mo.");
@@ -141,30 +147,42 @@ export async function readDocument(
     );
   }
   bitmap.close();
+  if (session) session.onProgress = onProgress;
   const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("fra", 1, {
-    workerPath: "/ocr/worker.min.js",
-    corePath: "/ocr/core",
-    langPath: "/ocr/lang",
-    workerBlobURL: false,
-    logger: (m) =>
-      onProgress(
-        m.status === "recognizing text"
-          ? "Reconnaissance du texte : " + Math.round(m.progress * 100) + " %"
-          : "Préparation de la lecture locale…",
-      ),
-  });
+  const worker =
+    session?.worker ||
+    (await createWorker("fra", 1, {
+      workerPath: "/ocr/worker.min.js",
+      corePath: "/ocr/core",
+      langPath: "/ocr/lang",
+      workerBlobURL: false,
+      logger: (m) =>
+        (session?.onProgress || onProgress)(
+          m.status === "recognizing text"
+            ? "Reconnaissance du texte : " + Math.round(m.progress * 100) + " %"
+            : "Préparation de la lecture locale…",
+        ),
+    }));
+  if (session) session.worker = worker;
+  if (session?.aborted) {
+    await worker.terminate();
+    throw new Error("Lecture interrompue.");
+  }
   try {
     const { data } = await worker.recognize(file);
+    if (data.text.length > 100000)
+      throw new Error(
+        "Texte trop volumineux. Utilisez des captures plus courtes.",
+      );
     return [
       {
         page: 1,
-        text: data.text.slice(0, 20000),
+        text: data.text,
         method: "ocr",
         confidence: data.confidence,
       },
     ];
   } finally {
-    await worker.terminate();
+    if (!session) await worker.terminate();
   }
 }

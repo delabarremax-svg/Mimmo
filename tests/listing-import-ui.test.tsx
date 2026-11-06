@@ -17,7 +17,7 @@ beforeEach(() => {
   mock.readDocument.mockResolvedValue([
     {
       page: 3,
-      text: "Appartement FICTIF OCR\nVille : Lille\nPrix 155000 €\nSurface 51 m²\n3 pièces\nDPE : D\nCharges : 90 € / mois",
+      text: "Appartement FICTIF OCR\nVille : Lille\nPrix 155000 €\nSurface habitable 51 m²\n3 pièces\nDPE : D\nCharges : 90 € / mois",
       method: "ocr",
       confidence: 89,
     },
@@ -54,7 +54,7 @@ it("previews copied facts, allows correction, and only then commits to the priva
   const { user, save } = await start();
   await user.type(
     screen.getByLabelText("Texte copié de l’annonce"),
-    "Appartement FICTIF TEST\nVille : Lille\nPrix 155000 €\n51 m²\n3 pièces\nDPE : D\nCharges : 90 € / mois",
+    "Appartement FICTIF TEST\nVille : Lille\nPrix 155000 €\nSurface habitable 51 m²\n3 pièces\nDPE : D\nCharges : 90 € / mois",
   );
   await user.click(
     screen.getByRole("button", { name: "Extraire de ce texte" }),
@@ -80,7 +80,7 @@ it("previews copied facts, allows correction, and only then commits to the priva
       expect.objectContaining({ label: "DPE", value: "D" }),
       expect.objectContaining({
         label: "Charges",
-        value: "Charges : 90 € / mois",
+        value: "90 € / mois",
       }),
     ]),
   );
@@ -91,6 +91,7 @@ it("automatically prefills OCR fields with filename and page, without claiming v
     screen.getByLabelText("Lire un PDF ou une capture"),
     new File(["synthetic"], "annonce-test.png", { type: "image/png" }),
   );
+  await user.click(screen.getByRole("button", { name: "Analyser le fichier" }));
   await waitFor(() =>
     expect(screen.getByLabelText("Prix (€)")).toHaveValue("155000"),
   );
@@ -121,7 +122,7 @@ it("preserves relecture on failed save and lets the owner retry", async () => {
   );
   await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
 });
-it("keeps contradictory prices visible and records their provenance even when choosing one", async () => {
+it("separates an old price from the current price without creating a conflict", async () => {
   const { user, save } = await start();
   await user.type(
     screen.getByLabelText("Texte copié de l’annonce"),
@@ -130,16 +131,16 @@ it("keeps contradictory prices visible and records their provenance even when ch
   await user.click(
     screen.getByRole("button", { name: "Extraire de ce texte" }),
   );
-  expect(screen.getByText("Contradiction à examiner")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Utiliser 160000" }));
+  expect(
+    screen.queryByText("Contradiction à examiner"),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Prix (€)")).toHaveValue("155000");
+  expect(screen.getByLabelText("Ancien prix")).toHaveValue("160000");
   await user.click(
     screen.getByRole("button", { name: "Enregistrer dans mes biens" }),
   );
   await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-  expect(save.mock.calls[0][0].facts.price).toMatchObject({
-    value: "160000",
-    status: "conflicting",
-  });
+  expect(save.mock.calls[0][0].facts.price.status).toBe("listing");
 });
 it("clears previous-source evidence when switching URLs", async () => {
   const { user, save } = await start();
@@ -162,6 +163,7 @@ it("does not insert stale OCR from a previous URL after changing the source", as
     screen.getByLabelText("Lire un PDF ou une capture"),
     new File(["synthetic"], "ancienne.png", { type: "image/png" }),
   );
+  await user.click(screen.getByRole("button", { name: "Analyser le fichier" }));
   await user.type(screen.getByLabelText("URL de l’annonce"), "9");
   await user.click(screen.getByRole("button", { name: "Lire l’annonce" }));
   await screen.findByText("Source sans autorisation de lecture.");
@@ -169,4 +171,91 @@ it("does not insert stale OCR from a previous URL after changing the source", as
   await waitFor(() =>
     expect(screen.getByLabelText("Prix (€)")).toHaveValue(""),
   );
+});
+
+it("queues 12 captures, adds/removes before reading, then analyzes once with individual provenance", async () => {
+  const { user, save } = await start();
+  const files = Array.from(
+    { length: 12 },
+    (_, i) =>
+      new File(["capture" + i], `capture-${i}.png`, { type: "image/png" }),
+  );
+  await user.upload(screen.getByLabelText("Lire un PDF ou une capture"), files);
+  expect(mock.readDocument).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "Retirer capture-0.png" }),
+  );
+  expect(screen.getByText("11 fichiers sélectionnés")).toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: "Analyser les 11 fichiers" }),
+  );
+  await screen.findByText(/Lecture terminée/);
+  expect(mock.readDocument).toHaveBeenCalledTimes(11);
+  expect(
+    screen.queryByText("Contradiction à examiner"),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Prix (€)")).toHaveValue("155000");
+  await user.click(
+    screen.getByRole("button", { name: "Enregistrer dans mes biens" }),
+  );
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  expect(save.mock.calls[0][0].listingImport.transcripts.pages).toBe(11);
+  const { unpackTranscripts } = await import(
+    "../src/services/capture-transcripts"
+  );
+  const pages = await unpackTranscripts(
+    save.mock.calls[0][0].listingImport.transcripts,
+  );
+  expect(pages.map((p) => p.source)).toEqual(files.slice(1).map((f) => f.name));
+  expect(
+    screen.queryByRole("button", { name: /Utiliser/ }),
+  ).not.toBeInTheDocument();
+});
+it("leaves low-quality OCR in the confirmation section and blocks save after the queue changes", async () => {
+  const { user, save } = await start();
+  mock.readDocument.mockResolvedValue([
+    { page: 1, text: "Prix 155000 €", method: "ocr", confidence: 30 },
+  ]);
+  await user.upload(
+    screen.getByLabelText("Lire un PDF ou une capture"),
+    new File(["x"], "floue.png", { type: "image/png" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Analyser le fichier" }));
+  await screen.findByText(/Lecture terminée/);
+  expect(screen.getByLabelText("Prix (€)")).toHaveValue("");
+  await user.selectOptions(
+    screen.getByLabelText("Proposition pour Prix (€)"),
+    "155000",
+  );
+  await user.upload(
+    screen.getByLabelText("Lire un PDF ou une capture"),
+    new File(["y"], "autre.png", { type: "image/png" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "Enregistrer dans mes biens" }),
+  ).toBeDisabled();
+  expect(save).not.toHaveBeenCalled();
+});
+it("flags genuinely conflicting sale prices across two captures without choosing one", async () => {
+  const { user } = await start();
+  mock.readDocument
+    .mockResolvedValueOnce([
+      { page: 1, text: "Prix 155000 €", method: "ocr", confidence: 90 },
+    ])
+    .mockResolvedValueOnce([
+      { page: 1, text: "Prix 165000 €", method: "ocr", confidence: 90 },
+    ]);
+  await user.upload(screen.getByLabelText("Lire un PDF ou une capture"), [
+    new File(["a"], "1.png", { type: "image/png" }),
+    new File(["b"], "2.png", { type: "image/png" }),
+  ]);
+  await user.click(
+    screen.getByRole("button", { name: "Analyser les 2 fichiers" }),
+  );
+  await screen.findByText(/Lecture terminée/);
+  expect(screen.getByLabelText("Prix (€)")).toHaveValue("");
+  expect(screen.getByText("Contradiction à examiner")).toBeInTheDocument();
+  expect(
+    screen.getByLabelText("Proposition pour Prix (€)"),
+  ).toBeInTheDocument();
 });

@@ -1,3 +1,4 @@
+import TranscriptArchive from "./components/TranscriptArchive";
 import ListingImport from "./components/ListingImport";
 import { ImportedMedia } from "./components/ListingImport";
 import Account from "./components/Account";
@@ -462,7 +463,7 @@ export default function App() {
                       . Les valeurs extraites restent à contrôler.
                     </p>
                     {property.investment?.observations
-                      .filter((o) => o.kind === "dpe" || o.label === "Charges")
+                      .filter((o) => o.kind === "dpe" || o.kind === "listing")
                       .map((o) => (
                         <p key={o.id}>
                           <strong>
@@ -472,6 +473,11 @@ export default function App() {
                           {o.source}
                         </p>
                       ))}
+                    {property.listingImport.transcripts && (
+                      <TranscriptArchive
+                        archive={property.listingImport.transcripts}
+                      />
+                    )}
                     <ImportedMedia photos={property.listingImport.photos} />
                   </details>
                 )}

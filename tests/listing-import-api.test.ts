@@ -1,3 +1,4 @@
+import { packTranscripts } from "../src/services/capture-transcripts";
 // @vitest-environment node
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 const mock = vi.hoisted(() => ({
@@ -119,10 +120,23 @@ it("accepts reviewed import evidence using only the authenticated user’s token
       url,
       { title: "FICTIF relu", price: "200000", dpe: "E" },
       evidence,
-      blankReport(url),
+      {
+        ...blankReport(url),
+        transcripts: await packTranscripts([
+          {
+            source: "capture-test.png",
+            page: 1,
+            text: "Prix 200000 €",
+            method: "ocr",
+          },
+        ]),
+      },
     );
   const r = await api(await request("properties", p, "PUT"), env);
   expect(r.status).toBe(200);
+  expect(
+    mock.rpc.mock.calls[0][1].project_payload.listingImport.transcripts,
+  ).toEqual(p.listingImport!.transcripts);
   expect(mock.rpc).toHaveBeenCalledWith(
     "save_private_project",
     expect.objectContaining({

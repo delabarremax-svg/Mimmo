@@ -31,7 +31,7 @@ export default function DocumentReader({
       <h4>Lire un PDF ou une capture sur votre appareil</h4>
       <p>
         Extraction locale du texte : vos fichiers ne sont pas envoyés à une IA.
-        Vérifiez les chiffres dans l’original. Un PDF scanné sans texte peut est
+        Vérifiez les chiffres dans l’original. Un PDF scanné sans texte est
         aussi lu par OCR local (jusqu’à 10 pages scannées par fichier).
       </p>
       <input

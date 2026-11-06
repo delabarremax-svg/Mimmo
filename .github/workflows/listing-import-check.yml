@@ -18,8 +18,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:accounts
-      - run: npx --no-install playwright install --with-deps chromium
+      - run: /usr/bin/google-chrome --version
       - run: node scripts/check-listing-import.mjs
+        env:
+          MIMMO_CHROMIUM: /usr/bin/google-chrome
   owned-http-fixtures:
     runs-on: ubuntu-latest
     timeout-minutes: 5

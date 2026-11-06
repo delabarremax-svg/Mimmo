@@ -21,7 +21,17 @@ import {
   type ImportField,
   type ImportReport,
 } from "../domain/listing-import";
-import DocumentReader from "./DocumentReader";
+import CaptureBatchReader from "./CaptureBatchReader";
+import { RawTranscripts } from "./TranscriptArchive";
+import {
+  contextualEvidence,
+  hasConflict,
+  canonicalValue,
+  mergeDescriptions,
+  primaryFields,
+  type CapturePage,
+} from "../domain/capture-analysis";
+import { packTranscripts } from "../services/capture-transcripts";
 export function ImportedMedia({ photos }: { photos: ImportReport["photos"] }) {
   if (!photos.length)
     return (
@@ -65,6 +75,9 @@ export default function ListingImport({
     [busy, setBusy] = useState(false),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
+  const [capturePages, setCapturePages] = useState<CapturePage[]>([]),
+    [pending, setPending] = useState(false);
+  const touched = useRef(new Set<ImportField>());
   const request = useRef(0),
     controller = useRef<AbortController | undefined>(undefined);
   useEffect(
@@ -74,17 +87,87 @@ export default function ListingImport({
     },
     [],
   );
-  function merge(items: ImportEvidence[]) {
-    setEvidence((prev) => uniqueEvidence([...prev, ...items]));
+  function merge(items: ImportEvidence[], replaceDocuments = false) {
+    const next = uniqueEvidence([
+      ...(replaceDocuments
+        ? evidence.filter((e) => !["ocr", "pdf"].includes(e.method))
+        : evidence),
+      ...items,
+    ]);
+    setEvidence(next);
     setValues((prev) => {
-      const next = { ...prev };
-      for (const c of items) if (!next[c.field]) next[c.field] = c.value;
-      return next;
+      const values = { ...prev };
+      for (const field of Object.keys(importLabels) as ImportField[]) {
+        if (touched.current.has(field)) continue;
+        const proofs = next.filter((e) => e.field === field),
+          safe = proofs.filter((e) => e.certainty !== "uncertain");
+        values[field] =
+          hasConflict(field, proofs) ||
+          (!["title", "description", "features"].includes(field) &&
+            new Set(safe.map((e) => canonicalValue(field, e.value))).size > 1)
+            ? ""
+            : safe[0]?.value || "";
+      }
+      return values;
     });
     onDirty(true);
   }
+  function analyzeCaptures(pages: CapturePage[]) {
+    setCapturePages(pages);
+    const items = pages
+      .flatMap((p) =>
+        contextualEvidence(
+          p.text,
+          `${report?.url} · ${p.source}`,
+          p.method,
+          p.page,
+          p.confidence,
+        ),
+      )
+      .filter((e) => e.field !== "description");
+    const featureItems = items.filter(
+      (e) => e.field === "features" && e.certainty !== "uncertain",
+    );
+    const features = [...new Set(featureItems.map((e) => e.value))]
+      .join("\n")
+      .slice(0, 1000);
+    const description = mergeDescriptions(pages);
+    if (description)
+      items.push({
+        field: "description",
+        value: description,
+        source: (
+          "Synthèse des captures · " + pages.map((p) => p.source).join(", ")
+        ).slice(0, 500),
+        excerpt: description.slice(0, 500),
+        method: "ocr",
+      });
+    if (features) {
+      const representative = featureItems[0];
+      items.push({
+        ...representative,
+        value: features,
+        source: (
+          "Synthèse des captures · " + pages.map((p) => p.source).join(", ")
+        ).slice(0, 500),
+      });
+      const combined = items.pop()!;
+      merge(
+        [
+          combined,
+          ...items.filter(
+            (e) => e.field !== "features" || e.certainty === "uncertain",
+          ),
+        ],
+        true,
+      );
+    } else merge(items, true);
+  }
   async function read() {
     setError("");
+    setCapturePages([]);
+    setPending(false);
+    touched.current.clear();
     let normalized: string;
     try {
       normalized = validateUrl(url);
@@ -135,16 +218,23 @@ export default function ListingImport({
     }
   }
   async function save(empty = false) {
-    if (!report || saving) return;
+    if (!report || saving || pending) return;
     setSaving(true);
     setError("");
     try {
+      const transcripts = capturePages.length
+        ? await packTranscripts(capturePages)
+        : undefined;
       await onSave(
         prepareImportedProperty(
           report.url,
           empty ? {} : values,
           empty ? [] : evidence,
-          { ...report, evidence: empty ? [] : evidence },
+          {
+            ...report,
+            evidence: empty ? [] : evidence,
+            ...(transcripts ? { transcripts } : {}),
+          },
         ),
       );
     } catch (e) {
@@ -163,7 +253,9 @@ export default function ListingImport({
   } catch {
     /* incomplete URL */
   }
-  const count = Object.keys(importLabels).filter((k) =>
+  const reviewGroup = (f: ImportField) =>
+    values[f] ? 0 : evidence.some((e) => e.field === f) ? 1 : 2;
+  const count = primaryFields.filter((k) =>
     values[k as ImportField]?.trim(),
   ).length;
   return (
@@ -205,7 +297,13 @@ export default function ListingImport({
             value={url}
             disabled={busy || saving}
             onChange={(e) => {
+              setCapturePages([]);
+              setPending(false);
+              touched.current.clear();
               setUrl(e.target.value);
+              setCapturePages([]);
+              setPending(false);
+              touched.current.clear();
               setReport(undefined);
               setEvidence([]);
               setValues({});
@@ -224,6 +322,9 @@ export default function ListingImport({
               setUrl(
                 location.origin + "/import-examples/appartement-fictif.html",
               );
+              setCapturePages([]);
+              setPending(false);
+              touched.current.clear();
               setReport(undefined);
               setEvidence([]);
               setValues({});
@@ -238,6 +339,9 @@ export default function ListingImport({
             disabled={busy || saving}
             onClick={() => {
               setUrl(location.origin + "/import-examples/maison-fictive.html");
+              setCapturePages([]);
+              setPending(false);
+              touched.current.clear();
               setReport(undefined);
               setEvidence([]);
               setValues({});
@@ -302,29 +406,11 @@ export default function ListingImport({
               nécessaires. La lecture reste sur votre appareil, sans appel à une
               IA.
             </p>
-            <DocumentReader
-              autoExtract
-              onUse={(value, page, source) =>
-                merge(
-                  textEvidence(
-                    value,
-                    `${report.url} · ${source}`,
-                    "text",
-                    page,
-                  ),
-                )
-              }
-              onExtract={(value, page, source, method) =>
-                merge(
-                  textEvidence(
-                    value,
-                    `${report.url} · ${source}`,
-                    method,
-                    page,
-                  ),
-                )
-              }
+            <CaptureBatchReader
+              onAnalyze={analyzeCaptures}
+              onPending={setPending}
             />
+            {!!capturePages.length && <RawTranscripts pages={capturePages} />}
             <label htmlFor="listing-copy">Texte copié de l’annonce</label>
             <textarea
               id="listing-copy"
@@ -359,126 +445,183 @@ export default function ListingImport({
               max={8}
               aria-label="Informations renseignées"
             />
-            {(Object.keys(importLabels) as ImportField[]).map((field) => {
-              const proofs = evidence.filter((c) => c.field === field),
-                alternatives = [...new Set(proofs.map((c) => c.value))],
-                conflict = alternatives.length > 1,
-                corrected =
-                  !!values[field] &&
-                  !proofs.some((p) => p.value === values[field]);
-              return (
-                <div className="import-field" key={field}>
-                  <label htmlFor={"review-" + field}>
-                    {importLabels[field]}
-                  </label>
-                  <span
-                    className={
-                      conflict ? "import-badge conflict" : "import-badge"
-                    }
-                  >
-                    {!values[field]
-                      ? "Manquante"
-                      : conflict
-                        ? "Contradiction à examiner"
-                        : corrected
-                          ? "Saisie ou correction personnelle"
-                          : "Extraite · à contrôler"}
-                  </span>
-                  {field === "description" ? (
-                    <textarea
-                      id={"review-" + field}
-                      rows={5}
-                      maxLength={fieldLimits[field]}
-                      value={values[field] || ""}
-                      disabled={saving}
-                      onChange={(e) => {
-                        setValues({ ...values, [field]: e.target.value });
-                        onDirty(true);
-                      }}
-                    />
-                  ) : (
-                    <input
-                      id={"review-" + field}
-                      inputMode={
-                        ["price", "area", "rooms"].includes(field)
-                          ? "decimal"
-                          : "text"
-                      }
-                      maxLength={fieldLimits[field]}
-                      value={values[field] || ""}
-                      disabled={saving}
-                      onChange={(e) => {
-                        setValues({ ...values, [field]: e.target.value });
-                        onDirty(true);
-                      }}
-                    />
-                  )}
-                  {conflict && (
-                    <div className="import-alternatives">
-                      {alternatives.map((value) => (
-                        <button
-                          type="button"
-                          key={value}
-                          className="secondary"
-                          disabled={saving}
-                          onClick={() =>
-                            setValues({ ...values, [field]: value })
-                          }
-                        >
-                          Utiliser {value.slice(0, 70)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {field === "charges" &&
-                    values.charges &&
-                    !/(?:mois|annuel|mensuel|\/\s*an\b|par\s+an)/i.test(
-                      values.charges,
-                    ) && (
-                      <p className="subtle">
-                        La période de ces charges n’est pas précisée. Vérifiez
-                        si elles sont mensuelles ou annuelles avant tout calcul.
+            <p className="subtle">
+              Prix et surface habitable ne sont pas déduits d’un nombre isolé.
+              Les autres montants et surfaces sont conservés séparément.
+            </p>
+            {(Object.keys(importLabels) as ImportField[])
+              .filter(
+                (field) =>
+                  primaryFields.includes(field) ||
+                  evidence.some((e) => e.field === field) ||
+                  values[field],
+              )
+              .sort((a, b) => {
+                return reviewGroup(a) - reviewGroup(b);
+              })
+              .map((field, index, all) => {
+                const proofs = evidence.filter((c) => c.field === field),
+                  alternatives = proofs
+                    .filter(
+                      (c, i, a) =>
+                        a.findIndex(
+                          (x) =>
+                            canonicalValue(field, x.value) ===
+                            canonicalValue(field, c.value),
+                        ) === i,
+                    )
+                    .map((c) => c.value),
+                  conflict = hasConflict(field, proofs),
+                  corrected =
+                    !!values[field] &&
+                    !proofs.some((p) => p.value === values[field]);
+                return (
+                  <div className="import-field" key={field}>
+                    {(index === 0 ||
+                      reviewGroup(field) !== reviewGroup(all[index - 1])) && (
+                      <p className="eyebrow">
+                        {values[field]
+                          ? "Fiche synthétique · à relire"
+                          : proofs.length
+                            ? "À confirmer avant utilisation"
+                            : "Informations manquantes"}
                       </p>
                     )}
-                  {proofs.length > 0 ? (
-                    <details>
-                      <summary>
-                        Voir {proofs.length > 1 ? "les sources" : "la source"}
-                      </summary>
-                      {proofs.map((c, i) => (
-                        <div key={i} className="import-proof">
-                          <p>
-                            {c.source}
-                            {c.page ? ` · page ${c.page}` : ""} ·{" "}
-                            {
+                    <label htmlFor={"review-" + field}>
+                      {importLabels[field]}
+                    </label>
+                    <span
+                      className={
+                        conflict ? "import-badge conflict" : "import-badge"
+                      }
+                    >
+                      {conflict
+                        ? "Contradiction à examiner"
+                        : !values[field]
+                          ? proofs.length
+                            ? "À confirmer"
+                            : "Manquante"
+                          : proofs.some(
+                                (p) =>
+                                  p.value === values[field] &&
+                                  p.certainty === "uncertain",
+                              )
+                            ? touched.current.has(field)
+                              ? "Confirmation personnelle · OCR incertain"
+                              : "À confirmer"
+                            : corrected
+                              ? "Saisie ou correction personnelle"
+                              : "Extraite · à contrôler"}
+                    </span>
+                    {field === "description" ? (
+                      <textarea
+                        id={"review-" + field}
+                        rows={5}
+                        maxLength={fieldLimits[field]}
+                        value={values[field] || ""}
+                        disabled={saving}
+                        onChange={(e) => {
+                          touched.current.add(field);
+                          setValues({ ...values, [field]: e.target.value });
+                          onDirty(true);
+                        }}
+                      />
+                    ) : (
+                      <input
+                        id={"review-" + field}
+                        inputMode={
+                          ["price", "area", "rooms"].includes(field)
+                            ? "decimal"
+                            : "text"
+                        }
+                        maxLength={fieldLimits[field]}
+                        value={values[field] || ""}
+                        disabled={saving}
+                        onChange={(e) => {
+                          touched.current.add(field);
+                          setValues({ ...values, [field]: e.target.value });
+                          onDirty(true);
+                        }}
+                      />
+                    )}
+                    {(conflict ||
+                      (!values[field] && alternatives.length > 0)) && (
+                      <select
+                        aria-label={"Proposition pour " + importLabels[field]}
+                        value=""
+                        disabled={saving}
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          touched.current.add(field);
+                          setValues({ ...values, [field]: e.target.value });
+                          onDirty(true);
+                        }}
+                      >
+                        <option value="">
+                          Choisir une proposition à confirmer…
+                        </option>
+                        {alternatives.map((value) => (
+                          <option key={value} value={value}>
+                            {value.slice(0, 160)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {field === "charges" &&
+                      values.charges &&
+                      !/(?:mois|annuel|mensuel|\/\s*an\b|par\s+an)/i.test(
+                        values.charges,
+                      ) && (
+                        <p className="subtle">
+                          La période de ces charges n’est pas précisée. Vérifiez
+                          si elles sont mensuelles ou annuelles avant tout
+                          calcul.
+                        </p>
+                      )}
+                    {proofs.length > 0 ? (
+                      <details>
+                        <summary>
+                          Voir {proofs.length > 1 ? "les sources" : "la source"}
+                        </summary>
+                        {proofs.map((c, i) => (
+                          <div key={i} className="import-proof">
+                            <p>
+                              {c.source}
+                              {c.page ? ` · page ${c.page}` : ""} ·{" "}
                               {
-                                ocr: "OCR à contrôler",
-                                pdf: "Texte du PDF",
-                                text: "Texte fourni",
-                                jsonld: "Données structurées de l’annonce",
-                                metadata: "Informations de la page",
-                                partner: "Flux partenaire autorisé",
-                              }[c.method]
-                            }
-                          </p>
-                          <blockquote>{c.excerpt}</blockquote>
-                        </div>
-                      ))}
-                    </details>
-                  ) : (
-                    <p className="subtle">
-                      Aucune valeur extraite pour ce champ. Vous pouvez le
-                      compléter ou le laisser vide.
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                                {
+                                  ocr: "OCR à contrôler",
+                                  pdf: "Texte du PDF",
+                                  text: "Texte fourni",
+                                  jsonld: "Données structurées de l’annonce",
+                                  metadata: "Informations de la page",
+                                  partner: "Flux partenaire autorisé",
+                                }[c.method]
+                              }
+                            </p>
+                            <blockquote>{c.excerpt}</blockquote>
+                          </div>
+                        ))}
+                      </details>
+                    ) : (
+                      <p className="subtle">
+                        Aucune valeur extraite pour ce champ. Vous pouvez le
+                        compléter ou le laisser vide.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             <ImportedMedia photos={report.photos} />
             <p className="subtle">
               DPE et charges sont conservés comme observations sourcées. Un lien
               photo ne constitue pas une analyse du logement.
             </p>
+            {pending && (
+              <p role="status">
+                La sélection a changé. Analysez le lot avant de sauvegarder.
+              </p>
+            )}
             {error && (
               <p className="error" role="alert">
                 {error}
@@ -488,7 +631,7 @@ export default function ListingImport({
               <button
                 type="button"
                 className="primary"
-                disabled={saving || !count}
+                disabled={saving || pending || !count}
                 onClick={() => void save()}
               >
                 {saving
@@ -501,7 +644,7 @@ export default function ListingImport({
               <button
                 type="button"
                 className="back"
-                disabled={saving}
+                disabled={saving || pending}
                 onClick={() => void save(true)}
               >
                 Garder seulement le lien, sans information

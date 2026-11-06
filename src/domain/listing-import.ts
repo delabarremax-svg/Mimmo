@@ -6,7 +6,11 @@ import {
   type FieldKey,
 } from "./property";
 import { emptyInvestment } from "./investment";
-import { extractListingText } from "./extraction";
+import {
+  contextualEvidence,
+  hasConflict,
+  canonicalValue,
+} from "./capture-analysis";
 export const importLabels = {
   title: "Titre",
   city: "Localisation",
@@ -16,6 +20,15 @@ export const importLabels = {
   description: "Description",
   dpe: "DPE",
   charges: "Charges",
+  propertyTax: "Taxe foncière",
+  rent: "Loyer",
+  previousPrice: "Ancien prix",
+  carrezArea: "Surface Carrez (m²)",
+  floorArea: "Surface au sol (m²)",
+  landArea: "Terrain (m²)",
+  otherArea: "Autres surfaces (m²)",
+  bedrooms: "Chambres",
+  features: "Caractéristiques relevées",
 } as const;
 export type ImportField = keyof typeof importLabels;
 export const fieldLimits: Record<ImportField, number> = {
@@ -27,6 +40,15 @@ export const fieldLimits: Record<ImportField, number> = {
   description: 4000,
   dpe: 80,
   charges: 160,
+  propertyTax: 160,
+  rent: 160,
+  previousPrice: 40,
+  carrezArea: 40,
+  floorArea: 40,
+  landArea: 40,
+  otherArea: 40,
+  bedrooms: 8,
+  features: 1000,
 };
 export const evidenceSchema = z
   .object({
@@ -39,12 +61,22 @@ export const evidenceSchema = z
       "description",
       "dpe",
       "charges",
+      "propertyTax",
+      "rent",
+      "previousPrice",
+      "carrezArea",
+      "floorArea",
+      "landArea",
+      "otherArea",
+      "bedrooms",
+      "features",
     ]),
     value: z.string().min(1).max(4000),
     source: z.string().min(1).max(500),
     excerpt: z.string().max(500),
     method: z.enum(["jsonld", "metadata", "text", "ocr", "pdf", "partner"]),
     page: z.number().int().min(1).max(10000).optional(),
+    certainty: z.enum(["uncertain"]).optional(),
   })
   .strict()
   .superRefine((c, ctx) => {
@@ -88,11 +120,19 @@ export const listingRecordSchema = z
       "unavailable",
     ]),
     attempted: z.boolean(),
-    evidence: z.array(evidenceSchema).max(32),
+    evidence: z.array(evidenceSchema).max(96),
+    transcripts: z
+      .object({
+        encoding: z.literal("gzip-base64"),
+        data: z.string().max(40000),
+        pages: z.number().int().min(1).max(200),
+      })
+      .strict()
+      .optional(),
     photos: z.array(photoLinkSchema).max(6),
   })
   .strict()
-  .refine((v) => JSON.stringify(v).length <= 24000, "Import trop volumineux");
+  .refine((v) => JSON.stringify(v).length <= 48000, "Import trop volumineux");
 export type ListingRecord = z.infer<typeof listingRecordSchema>;
 export type ImportReport = ListingRecord & {
   url: string;
@@ -115,57 +155,28 @@ export function textEvidence(
   method: ImportEvidence["method"] = "text",
   page?: number,
 ): ImportEvidence[] {
-  const result: ImportEvidence[] = extractListingText(text).map((c) => ({
-    ...c,
-    source: source.slice(0, 500),
-    method,
-    ...(page ? { page } : {}),
-  }));
-  const add = (field: ImportField, value: string, excerpt: string) => {
-    value = value.trim().slice(0, fieldLimits[field]);
-    if (value)
-      result.push({
-        field,
-        value,
-        excerpt: excerpt.slice(0, 500),
-        source: source.slice(0, 500),
-        method,
-        ...(page ? { page } : {}),
-      });
-  };
-  for (const line of text.split(/\n/)) {
-    let m = line.match(/^\s*(?:ville|localisation|commune)\s*:\s*(.{2,160})$/i);
-    if (m) add("city", m[1], line);
-    m = line.match(/^\s*(?:titre|intitulé)\s*:\s*(.{2,160})$/i);
-    if (m) add("title", m[1], line);
-    for (const d of line.matchAll(/\bDPE\s*(?:[:\-]|classe)?\s*([A-G])\b/gi))
-      add("dpe", d[1].toUpperCase(), line);
-    for (const charge of line.matchAll(
-      /\bcharges(?:[^\n.!?€\d]{0,45})(\d[\d \t\u00a0\u202f]*(?:[,.]\d{1,2})?\s*(?:€|euros?)(?:\s*(?:\/|par)\s*(?:mois|an)|\s*(?:annuelles?|mensuelles?))?)/gi,
-    ))
-      add("charges", charge[0], charge[0]);
-    const place = line.match(
-      /^\s*([A-ZÀ-Ý][\p{L} ’'-]{1,90})\s*\((\d{5})\)\s*$/u,
-    );
-    if (place) add("city", `${place[1].trim()} (${place[2]})`, line);
-  }
-  const first = text.split(/\n/).find((line) => line.trim());
-  if (
-    first &&
-    /^\s*(?:appartement|maison|studio|immeuble|duplex|loft|terrain)\b/i.test(
-      first,
-    ) &&
-    first.trim().length <= 160
-  )
-    add("title", first, first);
-  // The supplied description is transcribed verbatim, never generated from the URL.
-  if (text.trim()) add("description", text.trim(), text.trim());
-  return uniqueEvidence(result);
+  return uniqueEvidence(contextualEvidence(text, source, method, page));
 }
+
 export function uniqueEvidence(items: ImportEvidence[]): ImportEvidence[] {
   const valid = items.filter((c) => evidenceSchema.safeParse(c).success);
   const selected: ImportEvidence[] = [];
-  for (const c of valid) {
+  const variantKey = (c: ImportEvidence) =>
+    c.field +
+    "|" +
+    canonicalValue(c.field, c.value) +
+    "|" +
+    (c.certainty || "contextual");
+  const variants = valid.filter(
+    (c, i, a) => a.findIndex((x) => variantKey(x) === variantKey(c)) === i,
+  );
+  // Keep every distinct semantic value before spending the remaining budget on repeated sources.
+  // Refuse an oversized analysis instead of silently hiding a late conflicting value.
+  if (variants.length > 96 || JSON.stringify(variants).length > 18000)
+    throw new Error(
+      "Le lot contient trop de propositions différentes. Réduisez les pages utiles ; les textes bruts restent disponibles.",
+    );
+  for (const c of [...variants, ...valid]) {
     if (
       selected.some(
         (x) =>
@@ -177,8 +188,8 @@ export function uniqueEvidence(items: ImportEvidence[]): ImportEvidence[] {
     )
       continue;
     if (
-      selected.length < 32 &&
-      JSON.stringify([...selected, c]).length <= 12000
+      selected.length < 96 &&
+      JSON.stringify([...selected, c]).length <= 18000
     )
       selected.push(c);
   }
@@ -215,15 +226,21 @@ export function prepareImportedProperty(
       origin = exact || proofs[0];
     const source = (
       origin
-        ? `${origin.source}${origin.page ? " · page " + origin.page : ""} · extrait : ${origin.excerpt}${!exact ? " · correction personnelle lors de la relecture" : ""}`
+        ? `${origin.source}${origin.page ? " · page " + origin.page : ""} · extrait : ${origin.excerpt}${!exact ? " · correction personnelle lors de la relecture" : exact.certainty === "uncertain" ? " · confirmation personnelle d’une proposition incertaine" : ""}`
         : `${url} · saisie personnelle lors de la relecture`
     ).slice(0, 2000);
-    const conflict = new Set(proofs.map((c) => c.value)).size > 1;
-    if (field !== "dpe" && field !== "charges")
+    const conflict = hasConflict(field, proofs);
+    if (
+      ["title", "city", "price", "area", "rooms", "description"].includes(field)
+    )
       p.facts[field as FieldKey] = validateFact(field as FieldKey, {
         value,
         source,
-        status: conflict ? "conflicting" : exact ? "listing" : "estimated",
+        status: conflict
+          ? "conflicting"
+          : exact && exact.certainty !== "uncertain"
+            ? "listing"
+            : "estimated",
         updatedAt: new Date().toISOString(),
       });
     else
@@ -234,7 +251,11 @@ export function prepareImportedProperty(
         value,
         source: source.slice(0, 500),
         excerpt: origin?.excerpt || "",
-        status: conflict ? "conflicting" : exact ? "extracted" : "estimated",
+        status: conflict
+          ? "conflicting"
+          : exact && exact.certainty !== "uncertain"
+            ? "extracted"
+            : "estimated",
         date: new Date().toISOString(),
         ...(origin?.page ? { page: origin.page } : {}),
       });
@@ -247,6 +268,11 @@ export function prepareImportedProperty(
     attempted: record.attempted,
     photos: record.photos,
     evidence: uniqueEvidence(evidence),
+    ...(record.transcripts ? { transcripts: record.transcripts } : {}),
   });
+  if (new TextEncoder().encode(JSON.stringify(p)).length > 58000)
+    throw new Error(
+      "Le dossier dépasse la taille de sauvegarde. Conservez le texte brut téléchargé et importez les captures utiles dans un dossier plus court. Aucune donnée n’a été enregistrée.",
+    );
   return p;
 }

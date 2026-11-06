@@ -129,7 +129,7 @@ it("extracts copied location and DPE and separates monthly charges from the purc
     "245000",
   ]);
   expect(r.find((c) => c.field === "charges")?.value).toBe(
-    "Charges : 100 € / mois",
+    "100 € / mois",
   );
   expect(
     textEvidence("Prix 245000 € ; charges non précisées", url).some(
