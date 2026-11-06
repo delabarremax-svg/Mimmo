@@ -1,0 +1,71 @@
+name: Recette mobile des comptes déployés sans envoi email
+on:
+  push:
+    branches: [ops/approved-accounts-20261106]
+    paths: [.github/workflows/check-approved-accounts-preview.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.repository == 'delabarremax-svg/Mimmo' && github.ref == 'refs/heads/ops/approved-accounts-20261106'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7439f0765929a3a7116c78fd50e3cfaa683e0192
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:accounts
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Vérifier la révision publiée, l’interface iPhone et les erreurs de liens
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+        run: |
+          node --input-type=module <<'JS'
+          import {chromium} from '@playwright/test';
+          import {readFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          const origin='https://mimmo-v1-comptes-privee.delabarre-max.workers.dev';
+          const auth='Basic '+Buffer.from('mimmo:'+process.env.DEMO_PASSWORD).toString('base64');
+          const html=await readFile('dist/index.html','utf8');
+          const digest=value=>createHash('sha256').update(value).digest('hex');
+          for(const path of ['/',...Array.from(html.matchAll(/(?:src|href)="(\/assets\/[^"\s]+)"/g),m=>m[1])]){
+            const r=await fetch(origin+path,{headers:{Authorization:auth},redirect:'manual',signal:AbortSignal.timeout(15000)});
+            const local=await readFile(path==='/'?'dist/index.html':'dist'+path);
+            if(r.status!==200||digest(new Uint8Array(await r.arrayBuffer()))!==digest(local))throw new Error('Révision publiée différente des fichiers compilés autorisés.');
+          }
+          const browser=await chromium.launch();
+          try{
+            const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,httpCredentials:{username:'mimmo',password:process.env.DEMO_PASSWORD}});
+            let mutations=0; const errors=[];
+            await context.route('**/api/**',route=>{
+              if(route.request().method()!=='GET'){mutations++;return route.abort();}
+              return route.continue();
+            });
+            const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+            await page.goto(origin);
+            await page.getByRole('heading',{name:'Reprenez votre projet.'}).waitFor();
+            if(await page.getByRole('button',{name:'Charger les deux projets fictifs'}).count())throw new Error('Fixtures visibles dans l’espace comptes.');
+            for(const width of [320,390,430]){
+              await page.setViewportSize({width,height:844});
+              if(!(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)))throw new Error('Débordement mobile.');
+            }
+            await page.getByRole('button',{name:'Créer un compte',exact:true}).click();
+            await page.getByRole('heading',{name:'Créons votre compte.'}).waitFor();
+            await page.getByRole('button',{name:'J’ai déjà un compte'}).click();
+            await page.getByRole('button',{name:'Mot de passe oublié ?'}).click();
+            await page.getByRole('button',{name:'Recevoir le lien de récupération'}).waitFor();
+            for(const path of ['/api/confirm?code=invalid-mobile-check','/api/recover?code=invalid-mobile-check']){
+              await page.goto(origin+path);
+              await page.getByText(/Lien expiré ou ouvert dans un autre navigateur/).waitFor();
+              if(new URL(page.url()).searchParams.has('code'))throw new Error('Code non retiré de l’adresse de retour.');
+            }
+            if(errors.length||mutations)throw new Error('Erreur JavaScript ou tentative d’écriture.');
+            console.log('Révision 7439f07 publiée vérifiée ; interface comptes 320/390/430px et retours emails standard validés. Aucun email, utilisateur ou bien créé.');
+          }finally{await browser.close();}
+          JS
