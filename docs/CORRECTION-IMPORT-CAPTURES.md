@@ -94,3 +94,25 @@ mentionne UE **et AELE**, ainsi que des métadonnées hors région. Cet endpoint
 donc pas validé ici comme répondant à l’exigence stricte du fondateur. Un contrat
 plus précis ou un autre hébergement UE doit être qualifié avant activation.
 L’IA reste désactivée ; aucun appel facturable n’a été effectué.
+
+## Publication privée contrôlée
+
+Révision applicative `bfa5b1a`, publiée le 6 novembre 2026 avec l’autorisation du
+fondateur, uniquement sur https://mimmo-v1-comptes-privee.delabarre-max.workers.dev .
+[Publication et contrôles réussis](https://github.com/delabarremax-svg/Mimmo/actions/runs/42214003152).
+
+219 tests, compilation et audit réussis ; vrai OCR local de trois captures
+synthétiques chevauchantes et d’un PDF scanné, correction et sauvegarde simulée.
+PostgreSQL embarqué vérifie l’archive privée et l’isolation Alice/Bob.
+HTML/JS/CSS publiés comparés à la compilation autorisée, exemples et moteurs
+OCR/PDF accessibles sous protection, interfaces comptes à 320/390/430px et
+retours Auth contrôlés. Les trois autres démonstrations conservent les mêmes
+empreintes HTML/JS/CSS ; Londres et les biens réels ne sont pas modifiés.
+Aucune PR fusionnée ; aucune option payante ou IA activée.
+
+Recette : actualiser Safari, Ajouter un bien, conserver le lien de l’annonce,
+puis « Ajouter des captures, un PDF ou du texte ». Sélectionner le lot depuis
+Photos, ajuster les fichiers et toucher « Analyser ». Relire la fiche et les
+propositions incertaines, enregistrer, se déconnecter/reconnecter, puis retrouver
+les textes via « Informations et photos de l’import » et « Textes bruts et
+provenance ». Ce dernier essai avec les véritables fichiers reste à effectuer.

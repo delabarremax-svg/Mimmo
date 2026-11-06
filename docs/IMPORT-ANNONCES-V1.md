@@ -1,5 +1,7 @@
 # Import d’annonces V1 — 6 novembre 2026
 
+**Mise à jour après recette iPhone :** [correction de l’import groupé des captures](CORRECTION-IMPORT-CAPTURES.md), publiée sur l’aperçu privé. Ce document décrit aussi le socle initial ; la correction précise les nouvelles règles de lecture et de conservation du texte brut.
+
 Branche `feat/listing-import`, PR 7 basée sur la PR 6.
 Aperçu privé des comptes mis à jour avec autorisation explicite :
 [publication et recette iPhone](DEPLOIEMENT-IMPORT-PRIVE-2026-11-06.md). Les comptes réels, confirmation,
