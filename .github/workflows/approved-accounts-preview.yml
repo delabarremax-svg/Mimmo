@@ -1,0 +1,111 @@
+name: Aperçu comptes privé autorisé 6 novembre
+on:
+  push:
+    branches: [ops/approved-accounts-20261106]
+    paths: [.github/workflows/approved-accounts-preview.yml]
+permissions:
+  contents: read
+concurrency:
+  group: mimmo-v1-private-preview
+  cancel-in-progress: false
+jobs:
+  authorized-preview:
+    if: >-
+      github.repository == 'delabarremax-svg/Mimmo' &&
+      github.ref == 'refs/heads/ops/approved-accounts-20261106' &&
+      github.event.head_commit.message == 'Deploy authorized accounts preview 2026-11-06'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7439f0765929a3a7116c78fd50e3cfaa683e0192
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm test
+      - name: Vérifier les retours Supabase avec des liens volontairement invalides sans envoi email
+        run: |
+          node --input-type=module <<'JS'
+          import {readFile} from 'node:fs/promises';
+          const {vars}=JSON.parse(await readFile('deploy/wrangler-v1-accounts.json','utf8'));
+          const origin='https://mimmo-v1-comptes-privee.delabarre-max.workers.dev';
+          for(const path of ['/api/confirm','/api/recover',null]) {
+            const url=new URL('/auth/v1/verify',vars.SUPABASE_URL);
+            url.searchParams.set('token','0'.repeat(64));
+            url.searchParams.set('type',path==='/api/recover'?'recovery':'signup');
+            if(path)url.searchParams.set('redirect_to',origin+path);
+            const r=await fetch(url,{redirect:'manual',headers:{apikey:vars.SUPABASE_PUBLISHABLE_KEY},signal:AbortSignal.timeout(15000)});
+            const location=r.headers.get('Location');
+            const dest=location?new URL(location):null;
+            const ok=[302,303].includes(r.status)&&dest?.origin===origin&&dest?.pathname===(path||'/')&&dest.searchParams.has('error');
+            console.log(JSON.stringify({check:path||'Site URL',status:r.status,redirectOrigin:dest?.origin,redirectPath:dest?.pathname,ok}));
+            if(!ok)throw new Error('Retour Supabase à corriger avant déploiement. Aucun email ni utilisateur créé.');
+          }
+          JS
+      - name: Conserver les empreintes des trois démonstrations à préserver
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+        run: |
+          cat > work-preserve-demos.mjs <<'JS'
+          import {createHash} from 'node:crypto';
+          import {writeFile,readFile} from 'node:fs/promises';
+          const before=process.argv.includes('--before');
+          const auth='Basic '+Buffer.from('mimmo:'+process.env.DEMO_PASSWORD).toString('base64');
+          const values={};
+          for(const name of ['mimmo-demo-privee','mimmo-demo-ux','mimmo-v1-privee']){
+            const origin=`https://${name}.delabarre-max.workers.dev`;
+            const deny=await fetch(origin,{redirect:'manual',signal:AbortSignal.timeout(15000)});
+            if(deny.status!==401)throw new Error('Protection de démonstration à examiner.');
+            const r=await fetch(origin,{redirect:'manual',headers:{Authorization:auth},signal:AbortSignal.timeout(15000)});
+            if(r.status!==200)throw new Error('Démonstration inaccessible.');
+            const html=await r.text();const hash=createHash('sha256').update(html);
+            for(const [,path] of html.matchAll(/(?:src|href)="(\/assets\/[^"\s]+)"/g)){
+              const asset=await fetch(origin+path,{redirect:'manual',headers:{Authorization:auth},signal:AbortSignal.timeout(15000)});
+              if(asset.status!==200)throw new Error('Fichier indisponible.');
+              hash.update(new Uint8Array(await asset.arrayBuffer()));
+            }
+            values[name]=hash.digest('hex');
+          }
+          if(before)await writeFile('work-preserved-demos.json',JSON.stringify(values));
+          else{
+            const expected=JSON.parse(await readFile('work-preserved-demos.json','utf8'));
+            if(JSON.stringify(values)!==JSON.stringify(expected))throw new Error('Une démonstration a changé : examiner avant de communiquer le lien.');
+            console.log('Trois démonstrations préservées : HTML/JS/CSS identiques et protection anonyme 401.');
+          }
+          JS
+          node work-preserve-demos.mjs --before
+      - run: npm run build:accounts
+      - name: Déployer uniquement la révision autorisée de l’espace comptes existant
+        run: node scripts/deploy-v1-accounts.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CONFIRM_FREE_PLAN: "true"
+      - name: Vérifier que les démonstrations sont restées identiques
+        if: always()
+        run: |
+          if [ -f work-preserved-demos.json ]; then node work-preserve-demos.mjs; fi
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+      - name: Vérifier les callbacks déployés sans envoyer d’email
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+        run: |
+          node --input-type=module <<'JS'
+          const origin='https://mimmo-v1-comptes-privee.delabarre-max.workers.dev';
+          const Authorization='Basic '+Buffer.from('mimmo:'+process.env.DEMO_PASSWORD).toString('base64');
+          for(const path of ['/api/confirm?code=mimmo-invalid-test','/api/recover?code=mimmo-invalid-test']){
+            const r=await fetch(origin+path,{headers:{Authorization},redirect:'manual',signal:AbortSignal.timeout(15000)});
+            if(r.status!==303||r.headers.get('Location')!=='/?auth_notice=email_link_invalid#')throw new Error('Correction email non vérifiée.');
+            if(!r.headers.get('Cache-Control')?.includes('no-store'))throw new Error('Protection cache absente.');
+            console.log('Retour standard contrôlé : '+new URL(origin+path).pathname);
+          }
+          JS
