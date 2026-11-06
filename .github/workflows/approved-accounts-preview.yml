@@ -44,7 +44,7 @@ jobs:
             const r=await fetch(url,{redirect:'manual',headers:{apikey:vars.SUPABASE_PUBLISHABLE_KEY},signal:AbortSignal.timeout(15000)});
             const location=r.headers.get('Location');
             const dest=location?new URL(location):null;
-            const ok=[302,303].includes(r.status)&&dest?.origin===origin&&dest?.pathname===(path||'/')&&dest.searchParams.has('error');
+            const ok=[302,303].includes(r.status)&&dest?.origin===origin&&dest?.pathname===(path||'/')&&(dest.searchParams.has('error')||new URLSearchParams(dest.hash.slice(1)).has('error'));
             console.log(JSON.stringify({check:path||'Site URL',status:r.status,redirectOrigin:dest?.origin,redirectPath:dest?.pathname,ok}));
             if(!ok)throw new Error('Retour Supabase à corriger avant déploiement. Aucun email ni utilisateur créé.');
           }
