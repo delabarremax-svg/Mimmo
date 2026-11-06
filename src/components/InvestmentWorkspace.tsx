@@ -240,6 +240,7 @@ export default function InvestmentWorkspace({
                 e.preventDefault();
                 const f = data(e.currentTarget);
                 setError("");
+                setCandidates([]);
                 setCandidatesSource(String(f.source));
                 try {
                   if (f.method === "url") {
@@ -357,6 +358,24 @@ export default function InvestmentWorkspace({
               </div>
             )}
             <DocumentReader
+              onExtract={(text, page, source) => {
+                setError("");
+                setCandidates([]);
+                try {
+                  const proposed = extractListingText(text);
+                  setCandidates(proposed);
+                  setCandidatesSource(`${p.url} · ${source} · page ${page}`);
+                  setMessage(
+                    proposed.length
+                      ? "Champs proposés à partir de la lecture locale. Contrôlez les chiffres dans la capture ou le PDF avant intégration."
+                      : "Aucun prix d’achat, surface ou nombre de pièces identifiable. Utilisez l’extrait pour compléter la fiche.",
+                  );
+                } catch (e) {
+                  setError(
+                    e instanceof Error ? e.message : "Extraction impossible.",
+                  );
+                }
+              }}
               onUse={(text, page, source) => {
                 setAiEvidence({ source, page, text: text.slice(0, 2000) });
                 const form = sourceForm.current;

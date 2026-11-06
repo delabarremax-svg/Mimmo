@@ -13,7 +13,12 @@ export interface EuAiEnvironment {
   EU_AI_BUDGET_APPROVED?: string;
 }
 export function configuredEuAi(env: EuAiEnvironment): EuAiBinding | undefined {
-  if (env.EU_AI_ENABLED !== "true") return undefined;
+  if (
+    env.EU_AI_ENABLED !== "true" ||
+    env.EU_AI_PROCESSING_APPROVED !== "true" ||
+    env.EU_AI_BUDGET_APPROVED !== "true"
+  )
+    return undefined;
   if (env.EU_AI?.processingRegion === "EU") return env.EU_AI;
   if (
     env.EU_AI_PROCESSING_APPROVED !== "true" ||
@@ -30,10 +35,11 @@ export function configuredEuAi(env: EuAiEnvironment): EuAiBinding | undefined {
     model,
     async run(requested, input) {
       if (requested !== model) throw new Error("Modèle non autorisé.");
-      // Fixed endpoint: deployment must verify EU processing for the chosen account.
+      // Regional endpoint only. Contractual EU-only scope (including EFTA caveat)
+      // must still be approved for this account; a hostname is not a contract.
       // No configurable URL, fallback provider, logging, automatic retries or paid upgrade.
       const response = await fetch(
-        "https://api.mistral.ai/v1/chat/completions",
+        "https://api.eu.mistral.ai/v1/chat/completions",
         {
           method: "POST",
           redirect: "error",

@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { investmentSchema } from "../src/domain/investment";
 import { extractAuthorizedListing } from "./listing";
-import { runAnalysis } from "./analysis";
+import { runAnalysis, AnalysisError } from "./analysis";
 import type { EuAiEnvironment } from "./eu-ai";
 import {
   fields,
@@ -106,6 +106,168 @@ const propertySchema = z
       .strict(),
   })
   .strict();
+type EmailFlow = "signup" | "recovery";
+const emailStorageKey = "mimmo-email";
+const emailPendingSchema = z
+  .object({
+    kind: z.enum(["signup", "recovery"]),
+    until: z.number().int(),
+    storage: z.record(z.string().max(180), z.string().max(1000)),
+  })
+  .strict();
+function pendingCookieName(kind: EmailFlow) {
+  return `__Host-mimmo-email-${kind}`;
+}
+function emailCookie(name: string, value: string, age: number) {
+  return `${name}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${age}`;
+}
+function requestCookie(request: Request, name: string) {
+  return request.headers
+    .get("Cookie")
+    ?.split(";")
+    .map((s) => s.trim())
+    .find((s) => s.startsWith(name + "="))
+    ?.slice(name.length + 1);
+}
+function emailRedirect(location: string) {
+  // Explicit empty fragment also removes obsolete implicit-flow tokens from navigation.
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: location + "#",
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+    },
+  });
+}
+function emailClient(env: Environment, initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial));
+  const storage = {
+    getItem: (name: string) => values.get(name) ?? null,
+    setItem: (name: string, value: string) => {
+      values.set(name, value);
+    },
+    removeItem: (name: string) => {
+      values.delete(name);
+    },
+  };
+  return {
+    client: createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        ...options.auth,
+        flowType: "pkce",
+        // SDK requires persistence to use this request-local adapter. Only pending
+        // verifiers are copied into the encrypted cookie; sessions stay in this Map.
+        persistSession: true,
+        storageKey: emailStorageKey,
+        storage,
+      },
+    }),
+    snapshot: () =>
+      Object.fromEntries(
+        [...values].filter(
+          ([name]) =>
+            name.startsWith(emailStorageKey + "-") &&
+            name.endsWith("-code-verifier"),
+        ),
+      ),
+  };
+}
+async function setPendingEmail(
+  response: Response,
+  kind: EmailFlow,
+  storage: Record<string, string>,
+  env: Environment,
+) {
+  const pending = emailPendingSchema.parse({
+    kind,
+    until: Date.now() + 3600000,
+    storage,
+  });
+  if (
+    !storage[emailStorageKey + "-code-verifier"] ||
+    JSON.stringify(pending).length > 2500
+  )
+    throw new Error("État de confirmation indisponible.");
+  response.headers.append(
+    "Set-Cookie",
+    emailCookie(
+      pendingCookieName(kind),
+      await seal(pending, env.SESSION_KEY),
+      3600,
+    ),
+  );
+}
+async function standardEmailCallback(
+  request: Request,
+  env: Environment,
+  kind: EmailFlow,
+) {
+  const url = new URL(request.url),
+    name = pendingCookieName(kind);
+  const fail = () => {
+    const r = emailRedirect("/?auth_notice=email_link_invalid");
+    r.headers.append("Set-Cookie", emailCookie(name, "", 0));
+    return r;
+  };
+  try {
+    const code = url.searchParams.get("code"),
+      raw = requestCookie(request, name);
+    if (
+      !code ||
+      code.length > 2048 ||
+      !raw ||
+      raw.length > 3800 ||
+      url.searchParams.has("error")
+    )
+      return fail();
+    const pending = emailPendingSchema.parse(
+      await unseal(raw, env.SESSION_KEY),
+    );
+    if (pending.kind !== kind || pending.until < Date.now()) return fail();
+    const { client } = emailClient(env, pending.storage);
+    const flowId = url.searchParams.get("sb_flow_id");
+    if (flowId && !/^[a-zA-Z0-9_-]{8,64}$/.test(flowId)) return fail();
+    const { data, error } = await client.auth.exchangeCodeForSession(
+      code,
+      flowId ? { flowId } : undefined,
+    );
+    // The encrypted pending kind and its PKCE verifier bind this exchange to
+    // the signup or recovery request initiated by this browser.
+    if (error || !data.session) return fail();
+    const { data: identity, error: identityError } = await client.auth.getUser(
+      data.session.access_token,
+    );
+    if (
+      identityError ||
+      !identity.user ||
+      identity.user.id !== data.session.user.id
+    )
+      return fail();
+    const response = emailRedirect(
+      kind === "recovery" ? "/?recovery=1" : "/?auth_notice=email_confirmed",
+    );
+    response.headers.append("Set-Cookie", emailCookie(name, "", 0));
+    if (kind === "recovery") {
+      const value = await seal(
+        {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          until: Date.now() + 600000,
+        },
+        env.SESSION_KEY,
+      );
+      response.headers.append(
+        "Set-Cookie",
+        emailCookie("__Host-mimmo-recovery", value, 600),
+      );
+    }
+    // Signup confirms the email; an explicit password login creates the normal session.
+    return response;
+  } catch {
+    return fail();
+  }
+}
 export async function api(
   request: Request,
   env: Environment,
@@ -138,6 +300,27 @@ export async function api(
     (documentUpload ? 10 * 1024 * 1024 : 65536)
   )
     return json({ error: "Requête trop volumineuse." }, 413);
+  if (
+    request.method === "GET" &&
+    ["/api/confirm", "/api/recover"].includes(path) &&
+    !url.searchParams.has("token_hash")
+  ) {
+    if (
+      !(
+        await env.AUTH_LIMITER.limit({
+          key:
+            "email-callback:" +
+            (request.headers.get("CF-Connecting-IP") || "unknown"),
+        })
+      ).success
+    )
+      return json({ error: "Trop de tentatives. Réessayez plus tard." }, 429);
+    return standardEmailCallback(
+      request,
+      env,
+      path === "/api/recover" ? "recovery" : "signup",
+    );
+  }
   const client = createClient(
     env.SUPABASE_URL,
     env.SUPABASE_PUBLISHABLE_KEY,
@@ -244,18 +427,24 @@ export async function api(
         .object({ email: z.email().max(254) })
         .strict()
         .parse(await body());
-      const { error } = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: url.origin + "/api/recover",
-      });
+      const emailFlow = emailClient(env);
+      const { error } = await emailFlow.client.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo: url.origin + "/api/recover",
+        },
+      );
       if (error)
         return json(
           { error: "Envoi temporairement indisponible. Réessayez plus tard." },
           503,
         );
-      return json({
+      const response = json({
         ok: true,
         message: "Si ce compte existe, un email de récupération a été demandé.",
       });
+      await setPendingEmail(response, "recovery", emailFlow.snapshot(), env);
+      return response;
     }
     if (path === "/api/update-password" && request.method === "POST") {
       const raw = request.headers
@@ -322,10 +511,11 @@ export async function api(
         })
         .strict()
         .parse(await body());
+      const signupFlow = path === "/api/signup" ? emailClient(env) : undefined;
       const result =
         path === "/api/login"
           ? await client.auth.signInWithPassword(credentials)
-          : await client.auth.signUp({
+          : await signupFlow!.client.auth.signUp({
               ...credentials,
               options: { emailRedirectTo: url.origin + "/api/confirm" },
             });
@@ -353,6 +543,8 @@ export async function api(
         confirmation: !result.data.session,
       });
       if (outgoingCookie) response.headers.set("Set-Cookie", outgoingCookie);
+      if (signupFlow && !result.data.session)
+        await setPendingEmail(response, "signup", signupFlow.snapshot(), env);
       return response;
     }
     let session;
@@ -413,13 +605,19 @@ export async function api(
         return json({ error: "Trop de demandes." }, 429);
       try {
         response = json(await runAnalysis(await body(), env));
-      } catch {
+      } catch (e) {
+        const code = e instanceof AnalysisError ? e.code : "invalid_request";
         response = json(
           {
             error:
               "Analyse IA indisponible ou réponse non vérifiable. Aucun résultat ajouté.",
+            code,
           },
-          422,
+          code === "eu_ai_not_configured" || code === "provider_unavailable"
+            ? 503
+            : code === "quota"
+              ? 429
+              : 422,
         );
       }
     } else if (path === "/api/extract" && request.method === "POST") {

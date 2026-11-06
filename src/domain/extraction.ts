@@ -6,15 +6,50 @@ export function extractListingText(text: string): Candidate[] {
     throw new Error("Texte limité à 100 000 caractères.");
   const result: Candidate[] = [];
   const rules: [FieldKey, RegExp][] = [
-    ["price", /(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:€|euros?)/i],
-    ["area", /(\d+(?:[,.]\d+)?)\s*m[²2]/i],
-    ["rooms", /(\d+)\s*pi[èe]ces?\b/i],
+    ["price", /(\d[\d \t\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:€|euros?)/gi],
+    ["area", /(\d+(?:[,.]\d+)?)\s*m[²2]/gi],
+    ["rooms", /(\d+)\s*pi[èe]ces?\b/gi],
   ];
   for (const [field, re] of rules) {
-    const m = text.match(re);
-    if (m) {
+    for (const m of text.matchAll(re)) {
+      const start = m.index!,
+        end = start + m[0].length;
+      // A monthly rent, fee or terrace size is not the purchase price or living area.
+      // Keep ambiguous eligible amounts as separate proposals, never silently pick one.
+      const before =
+        text
+          .slice(Math.max(0, start - 100), start)
+          .split(/[\n€;!?]/)
+          .at(-1) || "";
+      const after = text.slice(end, end + 35);
+      if (field === "price") {
+        if (
+          /^\s*(?:\/(?:\s*)(?:mois|an|m[²2])|par\s+(?:mois|an|m[²2])|mensuels?|annuels?)/i.test(
+            after,
+          )
+        )
+          continue;
+        const labels = [
+          ...before.matchAll(
+            /loyer|charges?|honoraires?|taxe|mensualit[ée]|travaux|frais|prix(?:\s+d[’']achat)?|vente|propos[ée]\s+[àa]/gi,
+          ),
+        ];
+        const last = labels.at(-1)?.[0];
+        if (last && !/^(?:prix|vente|propos)/i.test(last)) continue;
+      }
+      if (
+        field === "area" &&
+        /(?:terrain|jardin|balcon|terrasse|parcelle)\s*(?:de|:)?\s*$/i.test(
+          before,
+        )
+      )
+        continue;
       const value = m[1].replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
-      if (Number(value) > 0) result.push({ field, value, excerpt: m[0] });
+      if (
+        Number(value) > 0 &&
+        !result.some((c) => c.field === field && c.value === value)
+      )
+        result.push({ field, value, excerpt: m[0] });
     }
   }
   return result;

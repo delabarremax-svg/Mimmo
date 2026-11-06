@@ -34,6 +34,8 @@ it("requires explicit user consent", async () => {
       {
         EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
         EU_AI_ENABLED: "true",
+        EU_AI_PROCESSING_APPROVED: "true",
+        EU_AI_BUDGET_APPROVED: "true",
       },
     ),
   ).rejects.toThrow();
@@ -44,6 +46,8 @@ it("returns only structured hypotheses grounded in exact source quotes", async (
   const r = await runAnalysis(input, {
     EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
     EU_AI_ENABLED: "true",
+    EU_AI_PROCESSING_APPROVED: "true",
+    EU_AI_BUDGET_APPROVED: "true",
   });
   expect(r).toMatchObject({
     source: "PV fictif",
@@ -64,6 +68,8 @@ it("rejects invented citations instead of storing them", async () => {
     runAnalysis(input, {
       EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
       EU_AI_ENABLED: "true",
+      EU_AI_PROCESSING_APPROVED: "true",
+      EU_AI_BUDGET_APPROVED: "true",
     }),
   ).rejects.toThrow("Citation IA absente");
 });
@@ -74,6 +80,8 @@ it("accepts the object response returned by provider JSON mode", async () => {
       await runAnalysis(input, {
         EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
         EU_AI_ENABLED: "true",
+        EU_AI_PROCESSING_APPROVED: "true",
+        EU_AI_BUDGET_APPROVED: "true",
       })
     ).findings,
   ).toEqual(output.findings);
@@ -90,6 +98,8 @@ it("accepts the EU provider chat-completions response contract", async () => {
       await runAnalysis(input, {
         EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
         EU_AI_ENABLED: "true",
+        EU_AI_PROCESSING_APPROVED: "true",
+        EU_AI_BUDGET_APPROVED: "true",
       })
     ).findings,
   ).toEqual(output.findings);
@@ -107,6 +117,8 @@ it("rejects unsourced numeric claims", async () => {
     runAnalysis(input, {
       EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
       EU_AI_ENABLED: "true",
+      EU_AI_PROCESSING_APPROVED: "true",
+      EU_AI_BUDGET_APPROVED: "true",
     }),
   ).rejects.toThrow("Chiffre IA non sourcé");
 });
@@ -120,6 +132,8 @@ it.each([
     runAnalysis(input, {
       EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
       EU_AI_ENABLED: "true",
+      EU_AI_PROCESSING_APPROVED: "true",
+      EU_AI_BUDGET_APPROVED: "true",
     }),
   ).rejects.toThrow();
 });
@@ -131,6 +145,8 @@ it("rejects invalid image bytes before inference", async () => {
       {
         EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
         EU_AI_ENABLED: "true",
+        EU_AI_PROCESSING_APPROVED: "true",
+        EU_AI_BUDGET_APPROVED: "true",
       },
     ),
   ).rejects.toThrow("JPEG invalide");
@@ -142,6 +158,8 @@ it("does not retry or fabricate a fallback when provider fails", async () => {
     runAnalysis(input, {
       EU_AI: { run, processingRegion: "EU", model: "eu-test-model" },
       EU_AI_ENABLED: "true",
+      EU_AI_PROCESSING_APPROVED: "true",
+      EU_AI_BUDGET_APPROVED: "true",
     }),
   ).rejects.toThrow("quota");
   expect(run).toHaveBeenCalledTimes(1);

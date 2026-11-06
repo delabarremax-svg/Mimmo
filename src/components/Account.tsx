@@ -12,7 +12,14 @@ export default function Account({
         : "login",
   );
   const [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(() => {
+      const notice = new URLSearchParams(location.search).get("auth_notice");
+      return notice === "email_confirmed"
+        ? "Email confirmé. Connectez-vous avec votre mot de passe."
+        : notice === "email_link_invalid"
+          ? "Lien expiré ou ouvert dans un autre navigateur. Ouvrez le lien dans Safari sur l’iPhone utilisé pour la demande. Si l’inscription est déjà confirmée, essayez de vous connecter. Pour récupérer votre mot de passe, demandez un nouveau lien ici."
+          : "";
+    });
   const title = {
     login: "Reprenez votre projet.",
     signup: "Créons votre compte.",
@@ -35,7 +42,7 @@ export default function Account({
             if (mode === "forgot") {
               await api("reset-password", "POST", { email: data.get("email") });
               setMessage(
-                "Si ce compte existe, un email de récupération a été demandé. Vérifiez aussi les indésirables.",
+                "Si ce compte existe, un email de récupération a été demandé. Ouvrez le dernier lien dans ce même navigateur. Vérifiez aussi les indésirables.",
               );
             } else if (mode === "recover") {
               const result = await api<{ warning?: string }>(
@@ -58,11 +65,13 @@ export default function Account({
                 email: data.get("email"),
                 password: data.get("password"),
               });
-              if (result.user) await onConnected(result.user.email);
-              else {
+              if (result.user) {
+                history.replaceState(null, "", location.pathname);
+                await onConnected(result.user.email);
+              } else {
                 setMode("login");
                 setMessage(
-                  "Vérifiez votre boîte email pour confirmer votre compte, puis connectez-vous ici.",
+                  "Vérifiez votre boîte email et ouvrez le lien dans ce même navigateur, puis connectez-vous ici. Seul le dernier lien demandé est utilisable.",
                 );
               }
             }

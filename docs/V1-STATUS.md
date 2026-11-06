@@ -1,5 +1,11 @@
 # État de livraison V1
 
+Mise à jour du 6 novembre : la PR 6 prépare les emails Supabase standards via
+PKCE, sans SMTP personnalisé pour le test du fondateur et sans modification
+des modèles. Voir [le guide de recette courant](ACTIVATION-COMPTES-V1.md).
+Le texte ci-dessous décrit les étapes précédentes ; la réception email et le
+parcours réel restent à valider après déploiement privé autorisé.
+
 ## Fonctionnel et testé localement
 
 - Base des PR 3 et 4 réutilisée, aucune fusion.

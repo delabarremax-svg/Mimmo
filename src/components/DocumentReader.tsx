@@ -2,8 +2,10 @@ import { useState } from "react";
 import { readDocument, type DocumentPage } from "../services/read-document";
 export default function DocumentReader({
   onUse,
+  onExtract,
 }: {
   onUse: (text: string, page: number, source: string) => void;
+  onExtract?: (text: string, page: number, source: string) => void;
 }) {
   const [pages, setPages] = useState<DocumentPage[]>([]),
     [name, setName] = useState(""),
@@ -64,6 +66,15 @@ export default function DocumentReader({
           {p.text ? (
             <>
               <pre className="document-text">{p.text}</pre>
+              {onExtract && (
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => onExtract(p.text, p.page, name)}
+                >
+                  Proposer les champs de cette annonce
+                </button>
+              )}
               <button
                 className="secondary"
                 type="button"

@@ -1,0 +1,33 @@
+name: Audit V1 sans publication
+on:
+  push:
+    branches: [feat/v1-completion-audit]
+permissions:
+  contents: read
+jobs:
+  readonly-audit:
+    if: github.repository == 'delabarremax-svg/Mimmo' && github.ref == 'refs/heads/feat/v1-completion-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Vérifier les aperçus et les réglages publics sans écrire de données
+        run: node scripts/audit-live-v1.mjs
+        env:
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Parcours mobile existant avec données fictives en mémoire
+        run: node scripts/check-private-v1.mjs
+        env:
+          MIMMO_TEST_URL: https://mimmo-v1-privee.delabarre-max.workers.dev
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+      - run: npm run build:v1-demo
+      - name: Vérifier OCR et intégration des champs en navigateur local
+        run: node scripts/check-local-import.mjs

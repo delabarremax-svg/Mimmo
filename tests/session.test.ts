@@ -95,3 +95,12 @@ it("does not report successful logout when provider revocation fails", async () 
   expect(r.status).toBe(400);
   expect(await r.json()).not.toEqual({ ok: true });
 });
+it("reports a disabled EU analysis service without invoking a provider or exposing credentials", async () => {
+  const r = await api(await request("analyze", "POST"), env);
+  expect(r.status).toBe(503);
+  expect(await r.json()).toEqual({
+    error:
+      "Analyse IA indisponible ou réponse non vérifiable. Aucun résultat ajouté.",
+    code: "eu_ai_not_configured",
+  });
+});
