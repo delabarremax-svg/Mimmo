@@ -3,9 +3,11 @@
 **Mise à jour du 6 novembre 2026 : ne plus modifier les modèles d'emails.**
 La PR 6 adapte MIMMO au lien `ConfirmationURL` standard de Supabase. Aucun SMTP
 personnalisé, domaine, abonnement ou clé à fournir pour le test privé du fondateur.
-La correction est préparée ; l'aperçu déployé ne la contient pas encore.
+La correction est déployée sur l’aperçu comptes privé depuis le 6 novembre 2026
+(révision 7439f07), après autorisation du fondateur. Les autres démonstrations
+sont restées inchangées.
 
-## Unique écran de configuration à vérifier, si pas déjà enregistré
+## Adresses de retour vérifiées — aucune action Supabase nécessaire
 
 Projet **Mimmo-Paris** uniquement :
 https://supabase.com/dashboard/project/nfhkfjtyfojiwajvbukk/auth/url-configuration
@@ -18,12 +20,14 @@ https://supabase.com/dashboard/project/nfhkfjtyfojiwajvbukk/auth/url-configurati
 - `https://mimmo-v1-comptes-privee.delabarre-max.workers.dev/api/confirm`
 - `https://mimmo-v1-comptes-privee.delabarre-max.workers.dev/api/recover`
 
-Enregistrer seulement si nécessaire. Garder confirmation email activée et modèles
+Les retours effectifs de confirmation, récupération et Site URL ont été vérifiés
+avec des liens volontairement invalides, sans envoi d’email ni création de compte.
+Ces valeurs sont fournies pour référence. Garder confirmation email activée et modèles
 Supabase inchangés. Ne pas activer SMTP ni modifier le projet de Londres.
 Les outils connectés n'exposent pas ce réglage Auth ; aucune clé ne doit être
 transmise pour tenter de le contourner.
 
-## Parcours de recette, après déploiement privé autorisé
+## Parcours réel de recette sur l’aperçu maintenant disponible
 
 1. Sur l'iPhone, ouvrir **Safari**, hors navigation privée, à l'adresse comptes
    ci-dessus. Utiliser la protection habituelle : identifiant `mimmo`, mot de
