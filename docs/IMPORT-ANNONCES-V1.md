@@ -63,6 +63,9 @@ Lors de la publication privée autorisée, Cloudflare a renvoyé les URL `.html`
 vers des URL sans extension (307). Le lecteur refuse intentionnellement les
 redirections. `assets.html_handling: "none"` sur le seul Worker comptes conserve
 donc les deux chemins exacts autorisés et évite ce changement automatique.
+Le Worker privé résout explicitement `/` vers `/index.html`, en conservant la
+query de retour Auth, car ce mode désactive aussi la résolution implicite de l’accueil.
+Un test vérifie accueil, retour Auth et chemin d’exemple avec ce routage exact.
 Aucun assouplissement des contrôles URL ni changement des autres Workers.
 
 ## Sources réelles : état exact

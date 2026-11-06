@@ -11,7 +11,11 @@ export default {
       },
     );
     if (gate.status !== 200) return gate;
-    const clean = new Request(request);
+    // Exact HTML asset paths keep the importer stable; serve the entry explicitly
+    // because html_handling=none does not resolve / to /index.html.
+    const target = new URL(request.url);
+    if (target.pathname === "/") target.pathname = "/index.html";
+    const clean = new Request(target, request);
     clean.headers.delete("Authorization");
     const response = await accounts.fetch(clean, env);
     response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
