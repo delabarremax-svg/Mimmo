@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: mimmo-v1-private-preview
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   authorized-preview:
     if: >-
@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 20
     env:
       WRANGLER_SEND_METRICS: "false"
+      MIMMO_CHROMIUM: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,7 +83,8 @@ jobs:
           JS
           node work-preserve-demos.mjs --before
       - run: npm run build:accounts
-      - run: npx --no-install playwright install --with-deps chromium
+      - name: Utiliser Chrome déjà installé sur le runner
+        run: /usr/bin/google-chrome --version
       - name: Valider les trois parcours locaux avant publication privée
         run: |
           node scripts/check-listing-import.mjs
@@ -132,7 +134,7 @@ jobs:
             const local=await readFile(path==='/'?'dist/index.html':'dist'+path);
             if(r.status!==200||digest(new Uint8Array(await r.arrayBuffer()))!==digest(local))throw new Error('Révision publiée différente des fichiers compilés autorisés.');
           }
-          const browser=await chromium.launch();
+          const browser=await chromium.launch({executablePath:process.env.MIMMO_CHROMIUM});
           try{
             const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,httpCredentials:{username:'mimmo',password:process.env.DEMO_PASSWORD}});
             let mutations=0; const errors=[];
