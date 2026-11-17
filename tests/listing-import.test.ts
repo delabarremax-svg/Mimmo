@@ -274,18 +274,19 @@ it("handles robots specificity, wildcards, query strings and allow precedence", 
   ).toBe(true);
 });
 it("bounds imported evidence and refuses forged verified metadata", () => {
-  const r = parseListingHtml(
-    html(
-      Array.from({ length: 100 }, (_, i) => ({
-        ...fixture,
-        name: "FICTIF " + i,
-        description: "x".repeat(4000),
-      })),
+  // Do not silently discard the potentially targeted property and read a recommendation instead.
+  expect(() =>
+    parseListingHtml(
+      html(
+        Array.from({ length: 100 }, (_, i) => ({
+          ...fixture,
+          name: "FICTIF " + i,
+          description: "x".repeat(4000),
+        })),
+      ),
+      url,
     ),
-    url,
-  );
-  expect(r.evidence.length).toBeLessThanOrEqual(32);
-  expect(JSON.stringify(r.evidence).length).toBeLessThanOrEqual(12000);
+  ).toThrow("trop volumineux");
   expect(
     listingRecordSchema.safeParse({
       ...blankReport(url),
