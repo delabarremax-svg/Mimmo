@@ -31,7 +31,7 @@ it("extracts structured data only from an authorized source", async () => {
     .mockResolvedValueOnce(new Response("User-agent: *\nDisallow:"))
     .mockResolvedValueOnce(
       new Response(
-        '<script type="application/ld+json">{"@type":"Offer","price":200000,"priceCurrency":"EUR"}</script>',
+        '<script type="application/ld+json">{"@type":"House","offers":{"@type":"Offer","price":200000,"priceCurrency":"EUR","businessFunction":"https://purl.org/goodrelations/v1#Sell"}}</script>',
         { headers: { "Content-Type": "text/html" } },
       ),
     );
@@ -44,5 +44,5 @@ it("extracts structured data only from an authorized source", async () => {
       )
     )[0].value,
   ).toBe("200000");
-  expect(fn.mock.calls[1][1].redirect).toBe("error");
+  expect(fn.mock.calls[1][1].redirect).toBe("manual");
 });

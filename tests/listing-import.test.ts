@@ -19,7 +19,11 @@ const fixture = {
   numberOfRooms: 4,
   floorSize: { value: 82.5, unitCode: "MTK" },
   address: { addressLocality: "Tours" },
-  offers: { price: 245000, priceCurrency: "EUR" },
+  offers: {
+    price: 245000,
+    priceCurrency: "EUR",
+    businessFunction: "https://purl.org/goodrelations/v1#Sell",
+  },
   image: ["https://media.example/maison.jpg", "javascript:alert(1)"],
   additionalProperty: [
     { name: "DPE", value: "F" },
@@ -128,9 +132,7 @@ it("extracts copied location and DPE and separates monthly charges from the purc
   expect(r.filter((c) => c.field === "price").map((c) => c.value)).toEqual([
     "245000",
   ]);
-  expect(r.find((c) => c.field === "charges")?.value).toBe(
-    "100 € / mois",
-  );
+  expect(r.find((c) => c.field === "charges")?.value).toBe("100 € / mois");
   expect(
     textEvidence("Prix 245000 € ; charges non précisées", url).some(
       (c) => c.field === "charges",
@@ -204,7 +206,7 @@ it("really reads only robots then HTML for a configured authorized source, witho
     "https://agency.example/robots.txt",
     url,
   ]);
-  expect(fetch.mock.calls[1][1]).toMatchObject({ redirect: "error" });
+  expect(fetch.mock.calls[1][1]).toMatchObject({ redirect: "manual" });
   expect(fetch.mock.calls[1][1].headers).not.toHaveProperty("Cookie");
   expect(fetch.mock.calls[1][1].headers).not.toHaveProperty("Authorization");
 });
@@ -272,18 +274,19 @@ it("handles robots specificity, wildcards, query strings and allow precedence", 
   ).toBe(true);
 });
 it("bounds imported evidence and refuses forged verified metadata", () => {
-  const r = parseListingHtml(
-    html(
-      Array.from({ length: 100 }, (_, i) => ({
-        ...fixture,
-        name: "FICTIF " + i,
-        description: "x".repeat(4000),
-      })),
+  // Do not silently discard the potentially targeted property and read a recommendation instead.
+  expect(() =>
+    parseListingHtml(
+      html(
+        Array.from({ length: 100 }, (_, i) => ({
+          ...fixture,
+          name: "FICTIF " + i,
+          description: "x".repeat(4000),
+        })),
+      ),
+      url,
     ),
-    url,
-  );
-  expect(r.evidence.length).toBeLessThanOrEqual(32);
-  expect(JSON.stringify(r.evidence).length).toBeLessThanOrEqual(12000);
+  ).toThrow("trop volumineux");
   expect(
     listingRecordSchema.safeParse({
       ...blankReport(url),

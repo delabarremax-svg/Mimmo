@@ -108,12 +108,17 @@ export function contextualEvidence(
     const postal = line.match(
       /^([\p{L}][\p{L} ’'-]{1,75})\s*\(?\b(\d{5})\)?$/u,
     );
+    if (
+      /^(?:ville|localisation|commune)\s*:?$/i.test(line) &&
+      /^[\p{Lu}][\p{L} ’()\d-]{1,100}$/u.test(following)
+    )
+      add("city", following, line + "\n" + following);
     if (explicitCity) add("city", explicitCity[1], line);
     else if (postal)
       add("city", postal[1].trim() + " (" + postal[2] + ")", line);
     else {
       const prefix = line.match(
-        /\b(?:situ[ée]e?s?\s+[àa]|(?:appartement|maison|studio|duplex|loft)(?:\s+(?:T|F)\d)?\s+[àa]|(?:au (?:cœur|coeur)|centre)\s+de)\s+/i,
+        /\b(?:situ[ée]e?s?\s+[àa]|(?:appartement|maison|studio|duplex|loft)(?:\s+(?:T|F)\d)?\s+[àa]|(?:au (?:cœur|coeur)|centre)\s+de|(?:village|commune|ville)\s+de)\s+/i,
       );
       if (prefix) {
         const place = line
@@ -128,9 +133,13 @@ export function contextualEvidence(
     const titleLabel = line.match(/^(?:titre|intitulé)\s*:\s*(.+)$/i);
     if (titleLabel) add("title", titleLabel[1], line);
     for (const d of line.matchAll(
-      /\b(?:DPE|classe\s+(?:[ée]nerg[ée]tique|[ée]nergie)|consommation [ée]nerg[ée]tique|diagnostic de performance [ée]nerg[ée]tique)\s*[:\-]?\s*([A-G])\b/gi,
-    ))
+      /\b(?:DPE|classe\s+(?:[ée]nerg[ée]tique|[ée]nergie)|consommation [ée]nerg[ée]tique|diagnostic de performance [ée]nerg[ée]tique)\s*[:\-]?\s*(?:classe\s+)?([A-G])\b/gi,
+    )) {
+      const rest = line.slice(d.index! + d[0].length);
+      // The first letter of an inline scale/range is not the selected energy class.
+      if (/^\s*(?:[|/,;→–-]|\s|[àa]|et)+[A-G]\b/i.test(rest)) continue;
       add("dpe", d[1].toUpperCase(), line);
+    }
     for (const r of line.matchAll(
       /(?<![\p{L}\d.,-])(\d{1,2})\s*(pi[èe]ces?|chambres?)\b/giu,
     ))
@@ -142,7 +151,7 @@ export function contextualEvidence(
     // A label can occupy the preceding line on a screenshot. Never search the whole page for a number's context.
     const previous = lines[i - 1] || "";
     const labelOnly =
-      /^(?:prix(?: de vente| demand[ée])?|charges?(?: de copropri[ée]t[ée])?(?: mensuelles?| annuelles?)?|taxe fonci[èe]re|loyer(?: mensuel)?|surface(?: habitable| Carrez| au sol)?|nombre de pi[èe]ces)\s*:?$/i.test(
+      /^(?:prix(?: de vente| demand[ée])?|charges?(?: de copropri[ée]t[ée])?(?: mensuelles?| annuelles?)?|taxe fonci[èe]re|loyer(?: mensuel)?|prix honoraires inclus|prix net vendeur|prix de vente hors frais d.agence|surface(?: habitable| Carrez| au sol)?|nombre de pi[èe]ces)\s*:?$/i.test(
         previous,
       );
     const money = /(\d[\d \t\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:€|euros?)/gi;
@@ -156,11 +165,37 @@ export function contextualEvidence(
           )[0];
       const labels = [
         ...prefix.matchAll(
-          /ancien prix|prix initial|prix avant baisse|prix(?: de vente| demand[ée])?|vente|charges?(?: de copropri[ée]t[ée])?|taxe fonci[èe]re|loyer|honoraires?|frais|travaux|mensualit[ée]|d[ée]p[oô]t de garantie/gi,
+          /ancien prix|prix initial|prix avant baisse|prix(?: de vente)?(?: honoraires inclus| HAI| FAI)|prix(?: de vente| demand[ée])?|vente|charges?(?: de copropri[ée]t[ée])?|taxe fonci[èe]re|loyer|honoraires?|frais|travaux|mensualit[ée]|d[ée]p[oô]t de garantie/gi,
         ),
       ];
+      const rawAfter = line.slice(m.index! + m[0].length);
+      const netSeller =
+        /(?:prix(?: de vente)?[^;€\d]*?(?:net vendeur|hors[^;€\d]*(?:honoraires|frais))|net vendeur)[^;€\d]*$/i.test(
+          prefix,
+        ) || /^\s*net vendeur\b/i.test(rawAfter);
+      if (netSeller) {
+        add(
+          "features",
+          (labelOnly ? previous + "\n" : "") + line,
+          (labelOnly ? previous + "\n" : "") + line,
+        );
+        continue;
+      }
+      const askingExplicit =
+        /^\s*(?:H\.?A\.?I\.?|F\.?A\.?I\.?|honoraires inclus)\b/i.test(rawAfter);
       const label = normalized(labels.at(-1)?.[0] || "");
-      if (/honoraire|frais|travaux|mensualite|depot/.test(label)) continue;
+      if (
+        /honoraire|frais|travaux|mensualite|depot/.test(label) &&
+        !/^prix/.test(label)
+      ) {
+        if (/honoraire|frais/.test(label))
+          add(
+            "features",
+            (labelOnly ? previous + "\n" : "") + line,
+            (labelOnly ? previous + "\n" : "") + line,
+          );
+        continue;
+      }
       let field: ImportField | undefined;
       if (/ancien|initial|avant baisse/.test(label)) field = "previousPrice";
       else if (/taxe/.test(label)) field = "propertyTax";
@@ -175,7 +210,7 @@ export function contextualEvidence(
         /^\s*[\d\s.,]+\s*(?:€|euros?)\s*(?:HAI|FAI)?\s*$/i.test(line) &&
         !!title &&
         i <= lines.indexOf(title) + 3;
-      if (!field && headerPrice) field = "price";
+      if (!field && (headerPrice || askingExplicit)) field = "price";
       if (!field) continue;
       if (field === "price" && /(?:par|\/)\s*(?:mois|an)|mensuel/i.test(suffix))
         continue;
@@ -197,7 +232,7 @@ export function contextualEvidence(
           ? number(m[1]) + " €" + period
           : number(m[1]),
         (labelOnly ? previous + "\n" : "") + line,
-        headerPrice ||
+        (headerPrice && !askingExplicit) ||
           /potentiel|estim[ée]|environ|[àa] partir de/i.test(localContext),
       );
     }
@@ -214,11 +249,11 @@ export function contextualEvidence(
         ),
       ];
       let kind = normalized(labels.at(-1)?.[0] || "");
-      if (!kind) {
+      {
         const following = after.match(
           /^\s*(?:de\s+)?(habitables?|Carrez|au sol|de terrain|de jardin|de terrasse)\b/i,
         );
-        kind = normalized(following?.[1] || "");
+        if (following) kind = normalized(following[1]);
       }
       let field: ImportField | undefined;
       if (/carrez/.test(kind)) field = "carrezArea";

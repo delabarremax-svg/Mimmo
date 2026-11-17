@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { extractJsonLd } from "../src/domain/extraction";
+import { hasConflict, canonicalValue } from "../src/domain/capture-analysis";
 import {
   blankReport,
   evidenceSchema,
@@ -40,7 +40,7 @@ function authorizedUrl(raw: string, authorizedHosts: string[] | string) {
             .split(",")
             .map((h) => h.trim().toLowerCase())
             .filter(Boolean)
-        : authorizedHosts;
+        : authorizedHosts.map((h) => h.trim().toLowerCase());
   if (
     u.protocol !== "https:" ||
     u.username ||
@@ -67,6 +67,7 @@ export function robotsAllows(robots: string, target: URL) {
     agents: string[];
     rules: { allow: boolean; path: string }[];
   }[] = [];
+  let directives = false;
   let group = {
     agents: [] as string[],
     rules: [] as { allow: boolean; path: string }[],
@@ -76,8 +77,9 @@ export function robotsAllows(robots: string, target: URL) {
       m = line.match(/^([\w-]+)\s*:\s*(.*)$/);
     if (!m) continue;
     if (m[1].toLowerCase() === "user-agent") {
-      if (group.rules.length) {
+      if (directives) {
         groups.push(group);
+        directives = false;
         group = { agents: [], rules: [] };
       }
       group.agents.push(m[2].toLowerCase());
@@ -85,31 +87,59 @@ export function robotsAllows(robots: string, target: URL) {
       ["allow", "disallow"].includes(m[1].toLowerCase()) &&
       group.agents.length &&
       m[2]
-    )
+    ) {
+      directives = true;
       group.rules.push({ allow: m[1].toLowerCase() === "allow", path: m[2] });
+    } else if (
+      group.agents.length &&
+      ["allow", "disallow"].includes(m[1].toLowerCase())
+    )
+      directives = true;
   }
   groups.push(group);
-  const specific = groups.filter((g) =>
-      g.agents.some((a) => a !== "*" && "mimmo".includes(a)),
-    ),
-    chosen = specific.length
-      ? specific
-      : groups.filter((g) => g.agents.includes("*"));
-  const path = target.pathname + target.search;
+  const specificity = (agents: string[]) =>
+    Math.max(
+      0,
+      ...agents
+        .filter((a) => a !== "*" && a && "mimmo".includes(a))
+        .map((a) => a.length),
+    );
+  const longest = Math.max(0, ...groups.map((g) => specificity(g.agents)));
+  const chosen = longest
+    ? groups.filter((g) => specificity(g.agents) === longest)
+    : groups.filter((g) => g.agents.includes("*"));
+  const octets = (s: string) =>
+    s
+      .replace(/[^\x21-\x7e]/gu, (c) => encodeURIComponent(c))
+      .replace(/%([0-9a-f]{2})/gi, (_, h: string) => {
+        const c = String.fromCharCode(parseInt(h, 16));
+        return /[A-Za-z0-9._~-]/.test(c) ? c : "%" + h.toUpperCase();
+      });
+  const path = octets(target.pathname + target.search);
   let best: { allow: boolean; weight: number } | undefined;
   for (const g of chosen)
     for (const rule of g.rules) {
       const end = rule.path.endsWith("$"),
         raw = end ? rule.path.slice(0, -1) : rule.path;
-      const pattern =
-        "^" +
-        raw
-          .split("*")
-          .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-          .join(".*") +
-        (end ? "$" : "");
-      if (new RegExp(pattern).test(path)) {
-        const weight = raw.replace(/\*/g, "").length;
+      const normalized = octets(raw),
+        parts = normalized.split("*");
+      let cursor = parts[0].length,
+        matched = path.startsWith(parts[0]);
+      for (let i = 1; matched && i < parts.length; i++) {
+        const part = parts[i];
+        const at =
+          end && i === parts.length - 1 && part
+            ? path.length - part.length
+            : path.indexOf(part, cursor);
+        if (at < cursor || path.slice(at, at + part.length) !== part)
+          matched = false;
+        else cursor = at + part.length;
+      }
+      if (end && parts.length === 1 && cursor !== path.length) matched = false;
+      if (matched) {
+        const weight = normalized
+          .replace(/%[0-9A-F]{2}/g, "x")
+          .replace(/\*/g, "").length;
         if (
           !best ||
           weight > best.weight ||
@@ -124,8 +154,16 @@ async function readResponse(r: Response, limit: number, robots = false) {
   if (robots && r.status === 404) return "";
   if (!r.ok)
     throw new ListingAccessError(
-      [401, 403, 429].includes(r.status) ? "access_blocked" : "unavailable",
-      "Source inaccessible ou accès refusé. Utilisez une capture, un PDF ou le texte.",
+      [401, 403, 429].includes(r.status)
+        ? "access_blocked"
+        : r.status === 404
+          ? "not_found"
+          : r.status >= 500
+            ? "source_unavailable"
+            : "unavailable",
+      r.status === 404
+        ? "Annonce ou ressource introuvable (404)."
+        : "Source inaccessible ou accès refusé. Utilisez une capture, un PDF ou le texte.",
     );
   if (
     !robots &&
@@ -161,60 +199,192 @@ async function readResponse(r: Response, limit: number, robots = false) {
   }
   return text + decoder.decode();
 }
-async function read(url: string, limit: number, robots = false) {
-  const r = await fetch(url, {
-    redirect: "error",
-    signal: AbortSignal.timeout(8000),
-    headers: {
-      "User-Agent": "Mimmo/1.0 (authorized listing import)",
-      Accept: robots ? "text/plain" : "text/html,application/xhtml+xml",
-    },
-  });
-  return readResponse(r, limit, robots);
+const redirects = new Set([301, 302, 303, 307, 308]);
+async function requestPage(url: URL, signal: AbortSignal, robots = false) {
+  try {
+    return await fetch(url.href, {
+      redirect: "manual",
+      signal,
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      headers: {
+        "User-Agent": "Mimmo/1.0 (authorized listing import)",
+        Accept: robots ? "text/plain" : "text/html,application/xhtml+xml",
+      },
+    });
+  } catch {
+    throw new ListingAccessError(
+      signal.aborted ? "timeout" : "network_error",
+      signal.aborted
+        ? "Le délai maximal de lecture est dépassé."
+        : "La connexion au site n’a pas abouti.",
+    );
+  }
 }
 
-async function readAuthorizedHtml(raw: string, hosts: string[] | string) {
-  const u = authorizedUrl(raw, hosts),
-    robots = await read(u.origin + "/robots.txt", 64000, true);
-  if (/<html|<!doctype/i.test(robots) || !robotsAllows(robots, u))
+async function redirected(
+  response: Response,
+  current: URL,
+  hosts: string[] | string,
+) {
+  await response.body?.cancel();
+  const location = response.headers.get("Location");
+  if (!location)
     throw new ListingAccessError(
-      "robots_denied",
-      "Collecte refusée par les règles du site. Utilisez un extrait fourni par vous.",
+      "invalid_redirect",
+      "Redirection sans destination exploitable.",
     );
-  const html = await read(u.href, 1000000);
-  if (
-    /cf-chl-|challenge-platform|<title[^>]*>[^<]*(?:captcha|access denied|just a moment|accès refusé)/i.test(
-      html,
-    )
-  )
+  let next: URL;
+  try {
+    next = new URL(location, current);
+  } catch {
     throw new ListingAccessError(
-      "access_blocked",
-      "Le site protège son accès. Ajoutez une capture ou du texte ; aucune protection n’est contournée.",
+      "invalid_redirect",
+      "Adresse de redirection invalide.",
     );
-  return html;
+  }
+  try {
+    return authorizedUrl(next.href, hosts);
+  } catch (e) {
+    if (e instanceof ListingAccessError && e.code === "authorization_required")
+      throw new ListingAccessError(
+        "redirect_not_authorized",
+        "La redirection vise une source non autorisée. Aucun accès à cette destination.",
+      );
+    throw e;
+  }
 }
-/** Existing API contract kept for dossier-level extraction. */
+async function readAuthorizedHtml(raw: string, hosts: string[] | string) {
+  let target = authorizedUrl(raw, hosts);
+  const signal = AbortSignal.timeout(15000),
+    policies = new Map<string, string>();
+  async function checkedBody(r: Response, limit: number, robots = false) {
+    try {
+      return await readResponse(r, limit, robots);
+    } catch (e) {
+      if (signal.aborted && !(e instanceof ListingAccessError))
+        throw new ListingAccessError(
+          "timeout",
+          "Le délai maximal de lecture est dépassé.",
+        );
+      throw e;
+    }
+  }
+  async function policy(origin: string) {
+    if (policies.has(origin)) return policies.get(origin)!;
+    let u = new URL("/robots.txt", origin);
+    const seen = new Set<string>();
+    for (let step = 0; step <= 3; step++) {
+      if (seen.has(u.href))
+        throw new ListingAccessError(
+          "redirect_loop",
+          "Boucle de redirection des règles du site.",
+        );
+      seen.add(u.href);
+      const response = await requestPage(u, signal, true);
+      if (redirects.has(response.status)) {
+        const next = await redirected(response, u, hosts);
+        if (step === 3)
+          throw new ListingAccessError(
+            "redirect_limit",
+            "Trop de redirections des règles du site.",
+          );
+        u = next;
+        continue;
+      }
+      const raw = await checkedBody(response, 64000, true);
+      if (/<html|<!doctype/i.test(raw) || /^\s*[\[{]/.test(raw))
+        throw new ListingAccessError(
+          "robots_unavailable",
+          "Les règles du site ne sont pas disponibles sous une forme exploitable. Lecture arrêtée.",
+        );
+      policies.set(origin, raw);
+      return raw;
+    }
+    throw new ListingAccessError(
+      "robots_unavailable",
+      "Règles du site indisponibles.",
+    );
+  }
+  const seen = new Set<string>();
+  for (let step = 0; step <= 3; step++) {
+    if (seen.has(target.href))
+      throw new ListingAccessError(
+        "redirect_loop",
+        "Boucle de redirection de l’annonce.",
+      );
+    seen.add(target.href);
+    if (!robotsAllows(await policy(target.origin), target))
+      throw new ListingAccessError(
+        "robots_denied",
+        "Collecte refusée par les règles du site. Utilisez un extrait fourni par vous.",
+      );
+    const response = await requestPage(target, signal);
+    if (redirects.has(response.status)) {
+      const next = await redirected(response, target, hosts);
+      if (step === 3)
+        throw new ListingAccessError(
+          "redirect_limit",
+          "Trop de redirections de l’annonce.",
+        );
+      target = next;
+      continue;
+    }
+    const html = await checkedBody(response, 1000000);
+    if (
+      /<title[^>]*>[^<]*(?:captcha|access denied|just a moment|accès refusé)|<form[^>]+(?:id|action)=["'][^"']*(?:captcha|challenge)/i.test(
+        html,
+      )
+    )
+      throw new ListingAccessError(
+        "access_blocked",
+        "Le site protège son accès. Aucune protection n’est contournée.",
+      );
+    return { html, url: target.href };
+  }
+  throw new ListingAccessError("redirect_limit", "Trop de redirections.");
+}
+function parsePage(html: string, url: string) {
+  try {
+    return parseListingHtml(html, url);
+  } catch {
+    throw new ListingAccessError(
+      "extraction_failed",
+      "La page a été reçue, mais sa structure ne permet pas une extraction sûre. Aucune donnée n’est inventée.",
+    );
+  }
+}
+/** Same parser for the legacy route; its contract cannot carry uncertainty, so omit uncertain proposals. */
 export async function extractAuthorizedListing(
   raw: string,
-  authorizedHosts: string[] | string,
+  hosts: string[] | string,
 ) {
-  const html = await readAuthorizedHtml(raw, authorizedHosts),
-    scripts = [
-      ...html.matchAll(
-        /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi,
-      ),
-    ].slice(0, 20);
-  const candidates = scripts.flatMap((m) => {
-    try {
-      return extractJsonLd(m[1]);
-    } catch {
-      return [];
-    }
-  });
+  const page = await readAuthorizedHtml(raw, hosts),
+    parsed = parsePage(page.html, page.url);
+  const candidates = parsed.evidence
+    .filter(
+      (c) =>
+        ["title", "city", "price", "area", "rooms", "description"].includes(
+          c.field,
+        ) && c.certainty !== "uncertain",
+    )
+    .map(({ field, value, excerpt }) => ({
+      field: field as
+        | "title"
+        | "city"
+        | "price"
+        | "area"
+        | "rooms"
+        | "description",
+      value,
+      excerpt,
+    }));
   if (!candidates.length)
     throw new ListingAccessError(
-      "no_data",
-      "Aucune information structurée exploitable. Collez le texte ou complétez la fiche.",
+      parsed.multipleListings ? "ambiguous_listing" : "no_data",
+      parsed.multipleListings
+        ? "Le bien ciblé ne peut pas être isolé. Aucune valeur attribuée."
+        : "Aucune information exploitable avec certitude. Utilisez un extrait.",
     );
   return candidates;
 }
@@ -259,6 +429,7 @@ export async function importListing(
         ),
         photos: result.photos,
         multipleListings: false,
+        transaction: "unknown",
       };
     } else if (ownedExample) {
       report.platform = "Exemple MIMMO fictif";
@@ -267,22 +438,58 @@ export async function importListing(
         await own.assets.fetch(new Request(own.origin + u.pathname)),
         1000000,
       );
-      parsed = parseListingHtml(html, raw);
+      parsed = parsePage(html, raw);
     } else {
       authorizedUrl(raw, hosts);
       report.attempted = true;
-      parsed = parseListingHtml(await readAuthorizedHtml(raw, hosts), raw);
+      const page = await readAuthorizedHtml(raw, hosts);
+      parsed = parsePage(page.html, page.url);
     }
     report.evidence = parsed.evidence;
     report.photos = parsed.photos;
     const count = new Set(parsed.evidence.map((e) => e.field)).size;
-    report.outcome = count >= 6 ? "extracted" : "partial";
-    report.code = count ? "read" : "no_data";
+    const required = ["price", "city", "area", "rooms", "dpe"];
+    const complete = required.every((field) => {
+      const proofs = parsed.evidence.filter((e) => e.field === field);
+      return (
+        proofs.some((e) => e.certainty !== "uncertain") &&
+        new Set(
+          proofs
+            .filter((e) => e.certainty !== "uncertain")
+            .map((e) =>
+              canonicalValue(
+                field as "price" | "city" | "area" | "rooms" | "dpe",
+                e.value,
+              ),
+            ),
+        ).size === 1 &&
+        !hasConflict(
+          field as "price" | "city" | "area" | "rooms" | "dpe",
+          proofs,
+        )
+      );
+    });
+    report.outcome = complete ? "extracted" : "partial";
+    report.code = parsed.multipleListings
+      ? "ambiguous_listing"
+      : parsed.transaction === "rent"
+        ? "rental_listing"
+        : parsed.transaction === "conflicting"
+          ? "transaction_conflict"
+          : count
+            ? "read"
+            : "no_data";
     report.message = parsed.multipleListings
-      ? "Plusieurs objets immobiliers apparaissent dans la page. Vérifiez à quel bien chaque valeur appartient."
+      ? "Le bien ciblé ne peut pas être isolé. Aucune donnée d’un autre bien n’est attribuée."
       : count
         ? "Informations publiques relevées. Relisez les valeurs avant sauvegarde."
         : "La page ne fournit pas d’informations exploitables. Ajoutez une capture, un PDF ou du texte.";
+    if (parsed.transaction === "rent")
+      report.message =
+        "Annonce de location : le loyer est distinct du prix d’achat, qui reste non renseigné.";
+    if (parsed.transaction === "conflicting")
+      report.message =
+        "Les indications de vente et de location sont incompatibles. Les montants restent à confirmer.";
     if (report.platform === "Exemple MIMMO fictif")
       report.message =
         "Annonce fictive de test MIMMO, lecture automatisée autorisée. Aucun bien réel proposé à la vente.";
@@ -292,9 +499,12 @@ export async function importListing(
     report.outcome =
       report.code === "authorization_required"
         ? "authorization_required"
-        : ["robots_denied", "access_blocked", "unsafe_url"].includes(
-              report.code,
-            )
+        : [
+              "robots_denied",
+              "access_blocked",
+              "unsafe_url",
+              "redirect_not_authorized",
+            ].includes(report.code)
           ? "blocked"
           : "unavailable";
     report.message =
