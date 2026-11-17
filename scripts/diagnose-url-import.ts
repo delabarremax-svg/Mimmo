@@ -2,7 +2,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { parseListingHtml } from "../server/listing-parser";
 import { importListing, robotsAllows } from "../server/listing";
-import { extractJsonLd } from "../src/domain/extraction";
+import { execFileSync } from "node:child_process";
 import { textEvidence } from "../src/domain/listing-import";
 const url = "https://authorized-example.invalid/annonce/123";
 const reports: Record<string, unknown>[] = [];
@@ -160,10 +160,15 @@ try {
     name: "Advert unrelated to the property",
     offers: { "@type": "Offer", price: 1, priceCurrency: "EUR" },
   };
-  const legacy = extractJsonLd(JSON.stringify(unrelated))
-    .filter((e) => e.field === "price")
-    .map((e) => e.value);
-  probe("legacy_route_accepts_advert_price", [], legacy, legacy.includes("1"));
+  const legacy = parseListingHtml(html(unrelated), url)
+    .evidence.filter((c) => c.field === "price")
+    .map((c) => c.value);
+  probe(
+    "unified_url_parser_rejects_advert_price",
+    [],
+    legacy,
+    legacy.includes("1"),
+  );
   globalThis.fetch = async (input, init) => {
     if (String(input).endsWith("/robots.txt"))
       return new Response("User-agent: *\nDisallow:");
@@ -226,7 +231,7 @@ const realSources = [
   },
   {
     url: "https://www.verlinghem-immo.fr/annonce-immobiliere-vente-appartement-f2-verlinghem-235000%E2%82%AC-verlinghem-immobilier-agence-immobiliere-verlinghem-288",
-    text: "Appartement F2 - VERLINGHEM\nSurface Habitable 50 m²\nDPE C (114)\nPrix de vente hors frais d'agence 214000€\n220 000 € H.A.I",
+    text: "Appartement F2\nvillage de Verlinghem\nSurface Habitable 50 m²\nDPE C (114)\nPrix de vente hors frais d'agence 214000€\n220 000 € H.A.I",
     observed: {
       price: "220000",
       city: "Verlinghem",
@@ -264,7 +269,16 @@ await mkdir("work", { recursive: true });
 await writeFile(
   "work/url-import-diagnostic.json",
   JSON.stringify(
-    { sourceCommit: "8c0b222eaaed62e5535c5943e3d91b5db46f9095", reports },
+    {
+      baselineCommit: "8c0b222eaaed62e5535c5943e3d91b5db46f9095",
+      workingTreeDirty: !!execFileSync("git", ["status", "--porcelain"], {
+        encoding: "utf8",
+      }).trim(),
+      executionCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      reports,
+    },
     null,
     2,
   ),

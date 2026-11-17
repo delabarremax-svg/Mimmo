@@ -1,0 +1,32 @@
+[
+  {
+    "source": "https://www.groupenationalimmobilier.fr/annonce/appartement-vente-2-pieces-caluire-et-cuire-44m2/GNI575751",
+    "checkedAt": "2026-11-17",
+    "access": "research_browser_text_only",
+    "originalHtmlRetrieved": false,
+    "automationPermissionQualified": false,
+    "excerpt": "Caluire-et-Cuire (69300)\nPrix de vente 185 000 €\n43,57 m²habitables\n2 pièces\nDPE : C",
+    "expected": {
+      "price": "185000",
+      "city": "Caluire-et-Cuire (69300)",
+      "area": "43.57",
+      "rooms": "2",
+      "dpe": "C"
+    }
+  },
+  {
+    "source": "https://www.verlinghem-immo.fr/annonce-immobiliere-vente-appartement-f2-verlinghem-235000%E2%82%AC-verlinghem-immobilier-agence-immobiliere-verlinghem-288",
+    "checkedAt": "2026-11-17",
+    "access": "research_browser_text_only_may_be_cached",
+    "originalHtmlRetrieved": false,
+    "automationPermissionQualified": false,
+    "excerpt": "Appartement F2\nvillage de Verlinghem\nSurface Habitable 50 m²\nDPE C (114)\n220 000 € H.A.I",
+    "expected": {
+      "price": "220000",
+      "city": "Verlinghem",
+      "area": "50",
+      "rooms": "2",
+      "dpe": "C"
+    }
+  }
+]
